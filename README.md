@@ -91,13 +91,14 @@ streamlit run repo_radar/ui/app.py
   ```bash
   python -m repo_radar.subscriptions.monitor
   ```
+* **GitHub Actions 云端无人巡检**：仓库已配置 `.github/workflows/radar-monitor.yml`，每周一凌晨自动在 GitHub 云端执行扫描，并将最新变动直接发布至 [LATEST_RADAR_DIGEST.md](LATEST_RADAR_DIGEST.md) 与 Action 摘要中。
 
 ### 5. Phase A 评测基准运行器
 在终端或设置页一键运行 40 条涵盖四大领域的真实中文需求基准测试：
 ```bash
 python -m repo_radar.benchmark.evaluate
 ```
-分领域透明展示 Top-1 命中率、Top-5 达标率与 P50/P95 检索延迟。
+分领域透明展示 Top-1 命中率、Top-5 达标率与 P50/P95 检索延迟。代码提交时亦由 GitHub Actions 自动跑通回归测试。
 
 ---
 
