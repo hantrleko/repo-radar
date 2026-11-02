@@ -1,0 +1,47 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+.pytest_cache/
+
+# Environments
+.env
+.venv
+venv/
+ENV/
+
+# Local Radar Data (SQLite database generated at runtime)
+data/*.db
+data/*.db-wal
+data/*.db-shm
+repo_radar/benchmark/*.db
+repo_radar/benchmark/*.db-wal
+repo_radar/benchmark/*.db-shm
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db

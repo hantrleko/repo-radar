@@ -1,0 +1,365 @@
+[
+  {
+    "id": "ACAD-01",
+    "domain": "学术研究",
+    "query": "找能解析学术论文PDF、抽取表格和公式并转成Markdown的Python库，不要付费OCR服务",
+    "required_capabilities": ["PDF解析", "公式提取", "表格提取"],
+    "target_languages": ["Python"],
+    "exclusions": ["付费OCR"],
+    "expected_repos": ["pymupdf/PyMuPDF", "pdfminer/pdfminer.six"]
+  },
+  {
+    "id": "ACAD-02",
+    "domain": "学术研究",
+    "query": "我想找管理BibTeX参考文献、自动重命名下载的论文PDF并同步到Zotero的开源工具",
+    "required_capabilities": ["参考文献管理", "BibTeX", "PDF重命名"],
+    "target_languages": [],
+    "exclusions": [],
+    "expected_repos": ["JabRef/jabref", "zotero/zotero"]
+  },
+  {
+    "id": "ACAD-03",
+    "domain": "学术研究",
+    "query": "类似LaTeX但语法更简单、编译速度更快的新一代排版工具，最好能导出PDF并在Windows上运行",
+    "required_capabilities": ["排版", "LaTeX替代", "PDF导出"],
+    "target_languages": ["Rust"],
+    "environments": ["Windows"],
+    "expected_repos": ["typst/typst"]
+  },
+  {
+    "id": "ACAD-04",
+    "domain": "学术研究",
+    "query": "支持自动生成学术论文双栏PPT或者Beamer演示文稿的轻量模板项目",
+    "required_capabilities": ["Beamer演示文稿", "PPT模版"],
+    "target_languages": [],
+    "exclusions": [],
+    "expected_repos": ["typst/typst", "josephwright/beamer"]
+  },
+  {
+    "id": "ACAD-05",
+    "domain": "学术研究",
+    "query": "用来绘制论文发表级别的高清科研折线图、箱线图和热力图的Python或R可视化库",
+    "required_capabilities": ["科研图表", "可视化", "高分辨率导出"],
+    "target_languages": ["Python", "R"],
+    "exclusions": [],
+    "expected_repos": ["matplotlib/matplotlib", "mwaskom/seaborn"]
+  },
+  {
+    "id": "ACAD-06",
+    "domain": "学术研究",
+    "query": "提取arXiv论文元数据、抓取摘要并做每日邮件推送或RSS提醒的脚本项目",
+    "required_capabilities": ["arXiv抓取", "邮件推送", "RSS提醒"],
+    "target_languages": ["Python"],
+    "exclusions": [],
+    "expected_repos": ["lukasschwab/arxiv.py"]
+  },
+  {
+    "id": "ACAD-07",
+    "domain": "学术研究",
+    "query": "用于学术代码复现性检查、自动生成requirements.txt或Docker环境的工具",
+    "required_capabilities": ["代码复现", "环境生成", "依赖抽取"],
+    "target_languages": ["Python"],
+    "exclusions": [],
+    "expected_repos": ["bndr/pipreqs"]
+  },
+  {
+    "id": "ACAD-08",
+    "domain": "学术研究",
+    "query": "科研论文写作辅助，能够检查LaTeX语法错误、拼写和重复用词的开源命令行工具",
+    "required_capabilities": ["LaTeX检查", "语法纠错", "CLI工具"],
+    "target_languages": [],
+    "exclusions": [],
+    "expected_repos": ["myint/language-check", "valentjn/ltex-ls"]
+  },
+  {
+    "id": "ACAD-09",
+    "domain": "学术研究",
+    "query": "支持把Jupyter Notebook一键转换成符合期刊格式的PDF论文的工具",
+    "required_capabilities": ["Notebook转换", "期刊格式PDF"],
+    "target_languages": ["Python"],
+    "exclusions": [],
+    "expected_repos": ["jupyter/nbconvert", "quarto-dev/quarto-cli"]
+  },
+  {
+    "id": "ACAD-10",
+    "domain": "学术研究",
+    "query": "能够解析维基百科或Semantic Scholar论文引用网络并做可视化的图分析库",
+    "required_capabilities": ["引文网络", "图分析", "可视化呈现"],
+    "target_languages": ["Python"],
+    "exclusions": [],
+    "expected_repos": ["networkx/networkx", "gephi/gephi"]
+  },
+
+  {
+    "id": "FIN-01",
+    "domain": "金融与经济研究",
+    "query": "我想找能下载宏观数据、做面板回归、输出 LaTeX 表格的 Python 项目，最好能在 Windows 上运行",
+    "required_capabilities": ["宏观数据", "面板回归", "LaTeX表格"],
+    "target_languages": ["Python"],
+    "environments": ["Windows"],
+    "expected_repos": ["bashtage/linearmodels", "akfamily/akshare"]
+  },
+  {
+    "id": "FIN-02",
+    "domain": "金融与经济研究",
+    "query": "获取中国统计局、央行宏观经济指标以及A股历史日线行情的免费开源Python库",
+    "required_capabilities": ["宏观数据", "A股历史行情", "免付费"],
+    "target_languages": ["Python"],
+    "exclusions": ["付费数据"],
+    "expected_repos": ["akfamily/akshare", "waditu/tushare"]
+  },
+  {
+    "id": "FIN-03",
+    "domain": "金融与经济研究",
+    "query": "做计量经济学因果推断、双重差分DID以及倾向得分匹配PSM的Python开源库",
+    "required_capabilities": ["因果推断", "DID双重差分", "PSM匹配"],
+    "target_languages": ["Python"],
+    "exclusions": [],
+    "expected_repos": ["py-why/dowhy", "bashtage/linearmodels"]
+  },
+  {
+    "id": "FIN-04",
+    "domain": "金融与经济研究",
+    "query": "计算资产定价经典模型，如Fama-French三因子和五因子回归的Python代码库",
+    "required_capabilities": ["资产定价", "Fama-French因子", "计量估计"],
+    "target_languages": ["Python"],
+    "exclusions": [],
+    "expected_repos": ["bashtage/linearmodels", "statsmodels/statsmodels"]
+  },
+  {
+    "id": "FIN-05",
+    "domain": "金融与经济研究",
+    "query": "用于分析上市公司财报文本、MD&A管理层讨论与语气分析的自然语言处理工具",
+    "required_capabilities": ["财报文本分析", "MD&A语气", "情感分析"],
+    "target_languages": ["Python"],
+    "exclusions": [],
+    "expected_repos": ["ranaroussi/yfinance"]
+  },
+  {
+    "id": "FIN-06",
+    "domain": "金融与经济研究",
+    "query": "做微观计量经济学断点回归RDD估计、并绘制带宽选择和置信区间图表的项目",
+    "required_capabilities": ["断点回归", "RDD", "带宽选择图表"],
+    "target_languages": ["Python", "R"],
+    "exclusions": [],
+    "expected_repos": ["py-why/dowhy"]
+  },
+  {
+    "id": "FIN-07",
+    "domain": "金融与经济研究",
+    "query": "分析全球大宗商品价格与汇率时间序列、进行协整检验和VECM误差修正模型的库",
+    "required_capabilities": ["协整检验", "VECM模型", "时间序列分析"],
+    "target_languages": ["Python"],
+    "exclusions": [],
+    "expected_repos": ["statsmodels/statsmodels"]
+  },
+  {
+    "id": "FIN-08",
+    "domain": "金融与经济研究",
+    "query": "能够计算高频金融微观结构指标（如订单簿失衡OFI、有效买卖价差）的Python项目",
+    "required_capabilities": ["市场微观结构", "订单簿OFI", "高频特征"],
+    "target_languages": ["Python"],
+    "exclusions": [],
+    "expected_repos": ["microsoft/qlib"]
+  },
+  {
+    "id": "FIN-09",
+    "domain": "金融与经济研究",
+    "query": "构建全球宏观经济多国投入产出表或贸易流动网络的可视化分析工具",
+    "required_capabilities": ["投入产出表", "贸易流动", "网络可视化"],
+    "target_languages": ["Python"],
+    "exclusions": [],
+    "expected_repos": ["networkx/networkx"]
+  },
+  {
+    "id": "FIN-10",
+    "domain": "金融与经济研究",
+    "query": "用于公司金融事件研究法（Event Study）、计算累积超额收益CAR的Python工具",
+    "required_capabilities": ["事件研究法", "累积超额收益CAR", "异常收益计算"],
+    "target_languages": ["Python"],
+    "exclusions": [],
+    "expected_repos": ["statsmodels/statsmodels"]
+  },
+
+  {
+    "id": "QUANT-01",
+    "domain": "量化交易",
+    "query": "支持国内商品期货CTP接口、带GUI界面并能进行CTA策略回测的开源交易框架",
+    "required_capabilities": ["CTP接口", "GUI界面", "CTA回测"],
+    "target_languages": ["Python"],
+    "environments": ["Windows"],
+    "expected_repos": ["vnpy/vnpy"]
+  },
+  {
+    "id": "QUANT-02",
+    "domain": "量化交易",
+    "query": "利用机器学习与AI大模型进行Alpha因子自动挖掘、表达式计算与IC评估的开源平台",
+    "required_capabilities": ["Alpha因子挖掘", "表达式计算", "IC评估"],
+    "target_languages": ["Python"],
+    "exclusions": [],
+    "expected_repos": ["microsoft/qlib"]
+  },
+  {
+    "id": "QUANT-03",
+    "domain": "量化交易",
+    "query": "轻量级的Python股票策略回测库，不要臃肿的分布式依赖，支持自定义手续费和滑点",
+    "required_capabilities": ["轻量回测", "滑点手续费", "无复杂依赖"],
+    "target_languages": ["Python"],
+    "exclusions": ["分布式依赖"],
+    "expected_repos": ["mementum/backtrader", "vnpy/vnpy"]
+  },
+  {
+    "id": "QUANT-04",
+    "domain": "量化交易",
+    "query": "连接多家加密货币交易所获取实时深度行情和K线数据的统一Python接口库",
+    "required_capabilities": ["多交易所接入", "深度行情", "统一API"],
+    "target_languages": ["Python"],
+    "exclusions": [],
+    "expected_repos": ["ccxt/ccxt"]
+  },
+  {
+    "id": "QUANT-05",
+    "domain": "量化交易",
+    "query": "用于股票投资组合均值-方差优化、风险平价（Risk Parity）与CVaR计算的量化库",
+    "required_capabilities": ["投资组合优化", "风险平价", "CVaR"],
+    "target_languages": ["Python"],
+    "exclusions": [],
+    "expected_repos": ["robertmartin8/PyPortfolioOpt"]
+  },
+  {
+    "id": "QUANT-06",
+    "domain": "量化交易",
+    "query": "基于Python的高频订单流与Tick级别回测引擎，支持模拟撮合逻辑",
+    "required_capabilities": ["Tick级回测", "高频订单流", "模拟撮合"],
+    "target_languages": ["Python"],
+    "exclusions": [],
+    "expected_repos": ["vnpy/vnpy"]
+  },
+  {
+    "id": "QUANT-07",
+    "domain": "量化交易",
+    "query": "能够根据技术指标自动生成买卖信号并通过微信或钉钉推送交易提醒的脚本",
+    "required_capabilities": ["技术指标信号", "消息推送", "自动化脚本"],
+    "target_languages": ["Python"],
+    "exclusions": [],
+    "expected_repos": ["bukosabino/ta"]
+  },
+  {
+    "id": "QUANT-08",
+    "domain": "量化交易",
+    "query": "用于量化实盘交易的资金管理与风控拦截网关，支持最大回撤和持仓限制预警",
+    "required_capabilities": ["交易风控", "回撤预警", "持仓限制"],
+    "target_languages": ["Python"],
+    "exclusions": [],
+    "expected_repos": ["vnpy/vnpy"]
+  },
+  {
+    "id": "QUANT-09",
+    "domain": "量化交易",
+    "query": "支持期权希腊字母（Delta、Gamma、Vega）计算和波动率曲面拟合的Python库",
+    "required_capabilities": ["期权定价", "希腊字母", "波动率曲面"],
+    "target_languages": ["Python"],
+    "exclusions": [],
+    "expected_repos": ["vollib/vollib"]
+  },
+  {
+    "id": "QUANT-10",
+    "domain": "量化交易",
+    "query": "强化学习在量化交易和做市商订单执行策略中的开源复现代码库",
+    "required_capabilities": ["强化学习交易", "做市策略", "代码复现"],
+    "target_languages": ["Python"],
+    "exclusions": [],
+    "expected_repos": ["microsoft/qlib"]
+  },
+
+  {
+    "id": "MEDIA-01",
+    "domain": "视频与图片创作",
+    "query": "用代码制作3Blue1Brown风格的数学和技术推导高清动画的Python库",
+    "required_capabilities": ["数学动画", "3Blue1Brown风格", "公式渲染"],
+    "target_languages": ["Python"],
+    "exclusions": [],
+    "expected_repos": ["ManimCommunity/manim"]
+  },
+  {
+    "id": "MEDIA-02",
+    "domain": "视频与图片创作",
+    "query": "本地离线运行的多语言音视频转录工具，能自动生成带时间轴的SRT字幕，支持GPU加速",
+    "required_capabilities": ["语音识别", "SRT字幕", "本地离线"],
+    "environments": ["GPU"],
+    "target_languages": ["Python"],
+    "expected_repos": ["openai/whisper", "m-bain/whisperX"]
+  },
+  {
+    "id": "MEDIA-03",
+    "domain": "视频与图片创作",
+    "query": "基于节点工作流的本地AI图像生成系统，支持Stable Diffusion模型与精细显存控制",
+    "required_capabilities": ["节点工作流", "AI生图", "显存控制"],
+    "target_languages": ["Python"],
+    "exclusions": [],
+    "expected_repos": ["comfyanonymous/ComfyUI", "AUTOMATIC1111/stable-diffusion-webui"]
+  },
+  {
+    "id": "MEDIA-04",
+    "domain": "视频与图片创作",
+    "query": "纯Python实现的命令行视频剪辑与拼接工具，不需要安装臃肿的商业视频软件",
+    "required_capabilities": ["命令行视频剪辑", "无GUI依赖", "视频拼接"],
+    "target_languages": ["Python"],
+    "exclusions": ["商业软件"],
+    "expected_repos": ["Zulko/moviepy"]
+  },
+  {
+    "id": "MEDIA-05",
+    "domain": "视频与图片创作",
+    "query": "开源的高质量语音合成TTS工具，支持中英文自然配音，最好能在Windows消费级显卡上跑",
+    "required_capabilities": ["语音合成TTS", "中英文配音", "消费级显卡"],
+    "environments": ["Windows"],
+    "target_languages": ["Python"],
+    "expected_repos": ["coqui-ai/TTS", "suno-ai/bark"]
+  },
+  {
+    "id": "MEDIA-06",
+    "domain": "视频与图片创作",
+    "query": "将长视频中的精彩片段或人脸说话部分自动识别并裁剪成9:16竖屏短视频的工具",
+    "required_capabilities": ["人脸追踪裁剪", "长转短视频", "竖屏重构"],
+    "target_languages": ["Python"],
+    "exclusions": [],
+    "expected_repos": ["Zulko/moviepy"]
+  },
+  {
+    "id": "MEDIA-07",
+    "domain": "视频与图片创作",
+    "query": "支持给视频自动添加动态花字字幕、对齐音频节奏的开源字幕制作工具",
+    "required_capabilities": ["动态花字字幕", "节奏对齐", "字幕生成"],
+    "target_languages": ["Python"],
+    "exclusions": [],
+    "expected_repos": ["openai/whisper"]
+  },
+  {
+    "id": "MEDIA-08",
+    "domain": "视频与图片创作",
+    "query": "根据Markdown文档或代码仓库自动生成技术演示短视频的工作流项目",
+    "required_capabilities": ["Markdown转视频", "演示视频生成", "自动化排版"],
+    "target_languages": ["Python", "TypeScript"],
+    "exclusions": [],
+    "expected_repos": ["ManimCommunity/manim"]
+  },
+  {
+    "id": "MEDIA-09",
+    "domain": "视频与图片创作",
+    "query": "用于批量图像无损放大、超分辨率修复与去噪的开源跨平台GUI应用",
+    "required_capabilities": ["超分辨率修复", "无损放大", "GUI应用"],
+    "target_languages": [],
+    "exclusions": [],
+    "expected_repos": ["xinntao/Real-ESRGAN"]
+  },
+  {
+    "id": "MEDIA-10",
+    "domain": "视频与图片创作",
+    "query": "通过编写类似HTML/CSS代码来排版和渲染精美技术宣传海报与卡片的SVG工具",
+    "required_capabilities": ["SVG渲染", "代码排版海报", "矢量卡片"],
+    "target_languages": ["JavaScript", "Python"],
+    "exclusions": [],
+    "expected_repos": ["typst/typst"]
+  }
+]
