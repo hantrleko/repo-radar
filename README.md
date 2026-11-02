@@ -2,6 +2,8 @@
 
 中文优先的个人开源项目发现与管理工具。用一句话描述需求，找到相关 GitHub 仓库，理解它们适合什么、缺什么、能否用于自己的项目，再按领域持续积累和更新。
 
+👉 **在线体验地址 (GitHub Pages)**: [https://hantrleko.github.io/repo-radar/](https://hantrleko.github.io/repo-radar/)
+
 ---
 
 ## 一、核心定位与原则
