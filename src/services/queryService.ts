@@ -1,4 +1,4 @@
-import { ParsedQuery, Repository, EvidenceAnalysis, SearchResultItem } from '../types';
+import type { ParsedQuery, Repository, EvidenceAnalysis, SearchResultItem } from '../types/index.ts';
 
 export function parseNaturalLanguageQuery(text: string): ParsedQuery {
   const clean = text.trim();
@@ -18,6 +18,7 @@ export function parseNaturalLanguageQuery(text: string): ParsedQuery {
   if (/\brust\b/i.test(clean)) parsed.target_languages.push('Rust');
   if (/\br\b|r语言/i.test(clean)) parsed.target_languages.push('R');
   if (/\bc\+\+\b/i.test(clean)) parsed.target_languages.push('C++');
+  if (/\btypescript\b|ts\b/i.test(clean)) parsed.target_languages.push('TypeScript');
 
   // 2. 环境抽取
   if (/windows|win\b|win10|win11/i.test(clean)) parsed.environments.push('Windows');
@@ -32,19 +33,22 @@ export function parseNaturalLanguageQuery(text: string): ParsedQuery {
   }
 
   // 4. 偏好
-  if (/轻量|简单|小而美/i.test(clean)) parsed.preferences.push('轻量简单');
-  if (/gui|图形界面|桌面端/i.test(clean)) parsed.preferences.push('有图形界面');
+  if (/轻量|简单|小而美|无依赖/i.test(clean)) parsed.preferences.push('轻量简单');
+  if (/gui|图形界面|桌面端|web/i.test(clean)) parsed.preferences.push('有图形界面');
 
-  // 5. 能力抽取
+  // 5. 核心能力抽取
   const capMap: [string, string[]][] = [
-    ['宏观数据', ['宏观数据', '经济数据', 'cpi', 'gdp', '统计局']],
+    ['宏观数据', ['宏观数据', '经济数据', 'cpi', 'gdp', '统计局', 'financial data']],
     ['面板回归', ['面板回归', '固定效应', '随机效应', 'panel regression', 'panel data']],
-    ['因果推断', ['因果推断', 'did', '双重差分', '断点回归', 'iv2sls', '工具变量']],
-    ['LaTeX表格', ['latex', 'latex表格', '排版', '导出表格']],
-    ['策略回测', ['回测', 'backtest', 'cta', '量化交易']],
-    ['代码动画', ['动画', 'manim', '3blue1brown', '动态图表']],
-    ['自动字幕', ['字幕', 'whisper', '语音识别', 'asr', 'srt']],
-    ['PDF解析', ['pdf', '论文提取', 'pdf解析']],
+    ['因果推断', ['因果推断', 'did', '双重差分', '断点回归', 'iv2sls', '工具变量', 'causal']],
+    ['LaTeX表格', ['latex', 'latex表格', '排版', '导出表格', 'stargazer']],
+    ['策略回测', ['回测', 'backtest', 'cta', '量化交易', 'algo trading']],
+    ['因子研究', ['alpha', '因子', 'factor', 'qlib']],
+    ['代码动画', ['动画', 'manim', '3blue1brown', '动态图表', 'animation']],
+    ['自动字幕', ['字幕', 'whisper', '语音识别', 'asr', 'srt', 'transcription']],
+    ['PDF解析', ['pdf', '论文提取', 'pdf解析', 'pymupdf']],
+    ['图像生成', ['sd', 'stable diffusion', 'comfyui', '图像生成', '生图']],
+    ['视频剪辑', ['剪辑', 'moviepy', '合成视频', '音视频']],
   ];
 
   for (const [name, kws] of capMap) {
@@ -58,9 +62,13 @@ export function parseNaturalLanguageQuery(text: string): ParsedQuery {
   // 扩展英文检索词
   const queries: string[] = [];
   const lang = parsed.target_languages[0] ? ` language:${parsed.target_languages[0].toLowerCase()}` : '';
+
   if (parsed.required_capabilities.includes('宏观数据') || parsed.required_capabilities.includes('面板回归')) {
     queries.push(`panel regression econometrics${lang}`);
     queries.push(`macroeconomic data python${lang}`);
+  }
+  if (parsed.required_capabilities.includes('因果推断')) {
+    queries.push(`causal inference python${lang}`);
   }
   if (parsed.required_capabilities.includes('代码动画')) {
     queries.push(`mathematical animation code${lang}`);
@@ -71,12 +79,80 @@ export function parseNaturalLanguageQuery(text: string): ParsedQuery {
   if (parsed.required_capabilities.includes('PDF解析')) {
     queries.push(`pdf extraction markdown${lang}`);
   }
+  if (parsed.required_capabilities.includes('策略回测')) {
+    queries.push(`quantitative trading backtesting${lang}`);
+  }
   if (queries.length === 0) {
     queries.push(`${parsed.target}${lang}`);
   }
 
   parsed.generated_github_queries = Array.from(new Set(queries)).slice(0, 3);
   return parsed;
+}
+
+/**
+ * 方向二：以仓找仓（构建替代品、更轻量版本、互补模块查询词）
+ */
+export function buildRelationQueries(
+  seedRepo: Repository,
+  mode: 'alternative' | 'lightweight' | 'complementary'
+): { queries: string[]; filterDesc: string } {
+  const lang = seedRepo.language ? ` language:${seedRepo.language.toLowerCase()}` : '';
+  const topicsStr = seedRepo.topics.slice(0, 2).join(' ');
+
+  if (mode === 'alternative') {
+    // 寻找生态位替代品（同核心能力、同语言、类似关键词）
+    const q1 = `${seedRepo.name} alternative${lang}`.trim();
+    const q2 = `${topicsStr || seedRepo.name} ${seedRepo.language || ''}`.trim();
+    return {
+      queries: [q1, q2],
+      filterDesc: `寻找 ${seedRepo.name} 的同生态位直接替代品 (同能力、同技术栈)`,
+    };
+  }
+
+  if (mode === 'lightweight') {
+    // 寻找更轻量、零依赖版本
+    const q1 = `${topicsStr || seedRepo.name} lightweight minimal${lang}`.trim();
+    const q2 = `${topicsStr || seedRepo.name} pure python zero dependency`.trim();
+    return {
+      queries: [q1, q2],
+      filterDesc: `寻找 ${seedRepo.name} 的轻量化、少依赖替代版本`,
+    };
+  }
+
+  // mode === 'complementary' 上下游互补模块
+  const nameLower = seedRepo.name.toLowerCase();
+  const descLower = (seedRepo.description || '').toLowerCase();
+
+  let compQuery = '';
+  let compDesc = '';
+
+  if (nameLower.includes('linear') || nameLower.includes('statsmodels') || descLower.includes('econometric') || descLower.includes('regression') || descLower.includes('causal inference')) {
+    // 计量分析类 -> 互补：宏观数据获取与 LaTeX 表格导出
+    compQuery = `macro data python OR regression table latex${lang}`;
+    compDesc = `为计量库 ${seedRepo.name} 匹配上游数据源与下游 LaTeX/表格导出模块`;
+  } else if (nameLower.includes('akshare') || nameLower.includes('yfinance') || descLower.includes('data interface') || descLower.includes('financial data') || descLower.includes('macro data') || descLower.includes('crawler')) {
+    // 数据获取类 -> 互补：计量分析与策略回测
+    compQuery = `panel regression econometrics OR backtesting${lang}`;
+    compDesc = `为数据获取库 ${seedRepo.name} 匹配下游计量分析与回测估计模块`;
+  } else if (nameLower.includes('whisper') || descLower.includes('audio') || descLower.includes('speech')) {
+    // 语音/字幕类 -> 互补：视频剪辑与字幕特效合成
+    compQuery = `video editing moviepy OR animation${lang}`;
+    compDesc = `为字幕转录库 ${seedRepo.name} 匹配下游视频剪辑与画面合成模块`;
+  } else if (nameLower.includes('backtest') || nameLower.includes('vnpy') || descLower.includes('trading')) {
+    // 回测交易类 -> 互补：因子挖掘与行情数据接入
+    compQuery = `alpha factor market data feed${lang}`;
+    compDesc = `为回测引擎 ${seedRepo.name} 匹配上游行情接入与 Alpha 因子库`;
+  } else {
+    // 通用互补：可视化与导出
+    compQuery = `visualization export table ${seedRepo.language || ''}`.trim();
+    compDesc = `为 ${seedRepo.name} 匹配可视化呈现与结果导出模块`;
+  }
+
+  return {
+    queries: [compQuery],
+    filterDesc: compDesc,
+  };
 }
 
 export function scoreAndTriage(
@@ -92,7 +168,7 @@ export function scoreAndTriage(
     const matched: string[] = [];
     const unmatched: string[] = [];
 
-    // 语言匹配
+    // 1. 语言匹配
     if (query.target_languages.length > 0) {
       if (repo.language && repo.language.toLowerCase() === query.target_languages[0].toLowerCase()) {
         score += 20;
@@ -103,8 +179,8 @@ export function scoreAndTriage(
       }
     }
 
-    // 能力匹配
-    const textCorpus = `${repo.full_name} ${repo.description} ${repo.topics.join(' ')} ${analysis.chinese_purpose}`.toLowerCase();
+    // 2. 核心能力匹配
+    const textCorpus = `${repo.full_name} ${repo.description} ${repo.topics.join(' ')} ${analysis.chinese_purpose} ${analysis.satisfied_conditions.join(' ')}`.toLowerCase();
     let hitCapCount = 0;
     for (const cap of query.required_capabilities) {
       if (textCorpus.includes(cap.toLowerCase()) || analysis.satisfied_conditions.some(s => s.toLowerCase().includes(cap.toLowerCase()))) {
@@ -118,7 +194,7 @@ export function scoreAndTriage(
       score += (hitCapCount / query.required_capabilities.length) * 30;
     }
 
-    // Windows 环境契合
+    // 3. Windows 环境契合
     if (query.environments.includes('Windows')) {
       if (analysis.os_compatibility.Windows === '支持') {
         score += 15;
@@ -131,9 +207,14 @@ export function scoreAndTriage(
       }
     }
 
-    // Star 缩放
+    // 4. Star 缩放
     if (repo.stars > 0) {
       score += Math.min(10, Math.log10(repo.stars + 1) * 2);
+    }
+
+    // 5. 深度取证加分（有实际证据可追溯）
+    if (analysis.is_deep_inspected) {
+      score += 5;
     }
 
     const finalScore = Math.max(0, Math.min(100, Math.round(score)));

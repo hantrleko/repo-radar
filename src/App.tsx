@@ -6,6 +6,7 @@ import { CollectionTab } from './components/CollectionTab';
 import { SubscriptionTab } from './components/SubscriptionTab';
 import { CompareModal } from './components/CompareModal';
 import { SettingsModal } from './components/SettingsModal';
+import { WorkflowComposerModal } from './components/WorkflowComposerModal';
 import { Repository, EvidenceAnalysis } from './types';
 
 export const App: React.FC = () => {
@@ -14,6 +15,10 @@ export const App: React.FC = () => {
   const [isCompareOpen, setIsCompareOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
+  // 工作流拼装台状态
+  const [isComposerOpen, setIsComposerOpen] = useState(false);
+  const [composerIncomingRepo, setComposerIncomingRepo] = useState<{ repo: Repository; analysis: EvidenceAnalysis } | undefined>();
+
   const handleAddToCompare = (repo: Repository, analysis: EvidenceAnalysis) => {
     if (compareList.some(c => c.repo.github_id === repo.github_id)) return;
     if (compareList.length >= 4) {
@@ -21,6 +26,11 @@ export const App: React.FC = () => {
       return;
     }
     setCompareList([...compareList, { repo, analysis }]);
+  };
+
+  const handleOpenComposer = (repo: Repository, analysis: EvidenceAnalysis) => {
+    setComposerIncomingRepo({ repo, analysis });
+    setIsComposerOpen(true);
   };
 
   return (
@@ -35,14 +45,18 @@ export const App: React.FC = () => {
 
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 lg:px-8 py-8">
         {activeTab === 'search' && (
-          <SearchTab onAddToCompare={handleAddToCompare} compareList={compareList} />
+          <SearchTab
+            onAddToCompare={handleAddToCompare}
+            compareList={compareList}
+            onOpenComposer={handleOpenComposer}
+          />
         )}
         {activeTab === 'catalog' && <CatalogTab />}
         {activeTab === 'collection' && <CollectionTab />}
         {activeTab === 'subscriptions' && <SubscriptionTab />}
       </main>
 
-      {/* Modals */}
+      {/* 弹窗组件 */}
       {isCompareOpen && (
         <CompareModal
           items={compareList}
@@ -58,10 +72,20 @@ export const App: React.FC = () => {
         <SettingsModal onClose={() => setIsSettingsOpen(false)} />
       )}
 
+      {isComposerOpen && (
+        <WorkflowComposerModal
+          onClose={() => {
+            setIsComposerOpen(false);
+            setComposerIncomingRepo(undefined);
+          }}
+          incomingRepo={composerIncomingRepo}
+        />
+      )}
+
       {/* Footer */}
       <footer className="border-t border-slate-800/80 py-6 text-center text-xs text-slate-500">
         <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <p>个人开源项目雷达 · 秉持中文优先、事实证据驱动、零模型幻觉原则</p>
+          <p>个人开源项目雷达 (RepoRadar CN) · V0.2 · 秉持中文优先、事实证据驱动、零模型幻觉原则</p>
           <div className="flex items-center space-x-4">
             <a href="https://github.com/hantrleko/repo-radar" target="_blank" rel="noreferrer" className="hover:text-slate-300 transition">
               GitHub 源码

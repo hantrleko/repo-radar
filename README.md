@@ -1,8 +1,28 @@
-# 个人开源项目雷达 (Personal Open-Source Project Radar)
+# 个人开源项目雷达 (Personal Open-Source Project Radar) `v0.2.0`
 
 中文优先的个人开源项目发现与管理工具。用一句话描述需求，找到相关 GitHub 仓库，理解它们适合什么、缺什么、能否用于自己的项目，再按领域持续积累和更新。
 
 👉 **在线体验地址 (GitHub Pages)**: [https://hantrleko.github.io/repo-radar/](https://hantrleko.github.io/repo-radar/)
+
+---
+
+## 🚀 V0.2.0 新特性 (三大方向重大升级)
+
+* **方向 1：实时 README/依赖文件深挖与 Token 驱动的证据溯源引擎**
+  * 深度拉取候选仓库的实时 README 原文及 `requirements.txt` / `pyproject.toml` / `package.json` 依赖清单。
+  * 提取客观证据：Windows / Linux / macOS 运行环境佐证、GPU/显存需求 (必须/可选/无需)、商业付费 API Key (OpenAI / Anthropic / Tushare / CTP) 依赖识别。
+  * 严格遵循“无证据则标为未知”原则，附带原文上下文切片（Evidence Snippets），零幻觉。
+  * 本地 ETag 与 SHA256 内容哈希防抖缓存，避免重复消耗 GitHub API 配额。
+
+* **方向 2：以仓找仓与研究工作流拼装台 (Workflow Composer)**
+  * **以仓找仓**：输入 GitHub 仓库链接或点击项目卡片，分别检索“同生态位替代品”、“更轻量/零依赖版本”、“上下游互补模块”（如为数据获取库匹配计量分析与回测，为计量库匹配数据源与 LaTeX 导出）。
+  * **研究工作流拼装台**：内置四大领域标准管线模板（宏观经济与金融计量、学术研读与论文复现、量化策略研发、科技视频创作），支持一键将候选项目装入数据获取、核心计算、可视化展示、报告导出等不同槽位，生成接口协作假设并导出完整 Markdown 流水线方案。
+
+* **方向 3：订阅中心真实数据贯通与已收藏仓库增量 Diff 监控**
+  * 浏览器端直连 GitHub API 增量巡检（点击“⚡ 立即增量巡检”）。
+  * README SHA-256 哈希比对：仅当 README 发生实质功能变更时触发重新评估，单纯 Star 变化严格防抖、不产生噪音。
+  * 状态机实时追踪：精准捕获项目“新版本提交”、“官方归档/只读锁定”及“README功能变更”。
+  * 变更事件中心支持按类型快速筛选（全部 / 新版本 / README变化 / 归档转移）与单条标记已读。
 
 ---
 

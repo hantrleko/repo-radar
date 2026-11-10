@@ -7,9 +7,11 @@ export interface Repository {
   html_url: string;
   stars: number;
   forks?: number;
+  open_issues?: number;
   language: string;
   license_spdx: string;
   pushed_at: string;
+  default_branch?: string;
   topics: string[];
   is_archived?: boolean;
 }
@@ -31,6 +33,10 @@ export interface EvidenceAnalysis {
   license_summary: string;
   maintenance_status: string;
   evidence_snippets: string[];
+  readme_hash?: string;
+  commit_sha?: string;
+  inspected_at?: string;
+  is_deep_inspected?: boolean;
 }
 
 export interface ParsedQuery {
@@ -64,11 +70,43 @@ export interface CollectionItem {
   updated_at: string;
 }
 
+export interface Subscription {
+  id: string;
+  name: string;
+  query_str: string;
+  domain: string;
+  frequency: string;
+  last_pushed_watermark?: string;
+  last_checked_at?: string;
+  is_active: boolean;
+}
+
 export interface ChangeEvent {
   id: string;
+  subscription_id?: string;
   repo_full_name: string;
   change_type: '新发现' | 'README功能变化' | '新版本' | '归档或转移' | '许可证变化';
+  old_value?: string;
+  new_value?: string;
   detail: string;
   occurred_at: string;
   is_read: boolean;
+}
+
+export interface WorkflowSlot {
+  id: string;
+  step_name: string;
+  capability: string;
+  repo?: Repository;
+  analysis?: EvidenceAnalysis;
+  interface_hypothesis: string;
+}
+
+export interface WorkflowPipeline {
+  id: string;
+  title: string;
+  domain: string;
+  description: string;
+  slots: WorkflowSlot[];
+  created_at: string;
 }
