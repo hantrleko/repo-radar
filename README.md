@@ -1,4 +1,4 @@
-# 个人开源项目雷达 (Personal Open-Source Project Radar) `v0.2.0`
+# 个人开源项目雷达 (Personal Open-Source Project Radar) `v0.3.0`
 
 中文优先的个人开源项目发现与管理工具。用一句话描述需求，找到相关 GitHub 仓库，理解它们适合什么、缺什么、能否用于自己的项目，再按领域持续积累和更新。
 
@@ -6,7 +6,36 @@
 
 ---
 
-## 🚀 V0.2.0 新特性 (三大方向重大升级)
+## 🔥 V0.3.0 旗舰版升级 (五大深水区能力全量落地)
+
+* **维度一：穿透 README 表面的仓库骨架与 Issue 真实避坑探针**
+  * **目录树可复现性嗅探 (`RepoTreeInspector`)**：单次调用 GitHub Git Trees API 扫描全仓结构，自动鉴定是否具备 `examples/`、`Jupyter (.ipynb)`、`tests/`、`Docker` 及论文复现脚本（`.do` / `.R` / `data/`）。
+  * **社区真实踩坑雷达 (`IssuePainPointScanner`)**：实时扫描未关闭 Open Issues，自动归类 `Windows兼容`、`安装编译`、`显存/算力`、`接口失效`、`维护警告` 五大痛点并附直达链接。
+  * **本地环境画像碰撞 (`UserEnvProfile`)**：在设置中配置你的主力机（Windows/macOS/Linux、Python 版本、GPU 显存容量、是否排斥付费 API），每张卡片自动亮出红黄绿灯碰撞预警。
+
+* **维度二：四大垂直领域“深水区专业探针”**
+  * **金融与经济研究探针**：自动鉴别免费公网数据源 vs 付费商业终端（Wind/WRDS/Tushare Pro），识别双向固定效应 (TWFE)、双重差分 (DID)、工具变量 (IV/GMM)、聚类稳健标准误与 LaTeX 导出能力。
+  * **量化交易探针**：自动核查回测引擎架构（事件驱动 vs 向量化）、是否包含手续费/滑点（`commission`/`slippage`）建模及防未来函数（`look-ahead bias`）声明。
+  * **学术研究探针**：自动提取 `arXiv ID`、`DOI`，支持**一键复制标准 BibTeX 学术引用条目**。
+  * **视频与图片创作探针**：严格拆分“代码开源协议”与“模型权重商用限制”（识别 `CC-BY-NC`/非商用限制），自动提取最低显存水位（如 `>= 24GB VRAM`）。
+
+* **维度三：前端直连 BYOK 大模型双擎与强制原文引证核验**
+  * 支持在前端配置 DeepSeek / OpenAI 兼容接口 / 本地 Ollama (`http://localhost:11434`)，密钥仅存本地浏览器。
+  * **两阶段零幻觉机制**：第一阶段将复杂中文需求裂变为正交英文检索式；第二阶段提取 README 证据时强制要求模型返回一字不差的原文引文 (`exact_quote`)，前端校验器逐条与原文做子串核验，捏造引文 100% 自动拦截。
+
+* **维度四：工作流拼装台进化为“脚手架代码生成器” (`ScaffoldGenerator`)**
+  * 支持在各流水线槽位自由指派候选库或收藏库，实时预览并一键导出：
+    1. 去重合并后的统一环境依赖清单 **`requirements.txt`**；
+    2. 含分步数据交接骨架与文档注释的 **`pipeline_starter.py`**；
+    3. 可直接在 VS Code / JupyterLab 打开运行的 **`workflow.ipynb` (Jupyter Notebook)**。
+
+* **维度五：GitHub Secret Gist 跨端云同步 & Awesome 清单批量吞吐**
+  * **Secret Gist 无后端云同步**：复用 GitHub Token 一键将收藏夹、评估笔记、订阅、工作流与环境画像加密备份至私密 Gist，多设备无缝漫游恢复。
+  * **Awesome 清单批量入库**：输入任意 `awesome-xxx` 仓库地址或粘贴 Markdown，自动解析所有 GitHub 仓库并按四大领域归类批量导入本地目录库。
+
+---
+
+## 🚀 V0.2.0 特性回顾 (三大基础闭环)
 
 * **方向 1：实时 README/依赖文件深挖与 Token 驱动的证据溯源引擎**
   * 深度拉取候选仓库的实时 README 原文及 `requirements.txt` / `pyproject.toml` / `package.json` 依赖清单。

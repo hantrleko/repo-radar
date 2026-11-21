@@ -1,15 +1,54 @@
-import { CollectionItem, Repository, EvidenceAnalysis, Subscription, ChangeEvent, WorkflowPipeline } from '../types';
+import type {
+  CollectionItem,
+  Repository,
+  EvidenceAnalysis,
+  Subscription,
+  ChangeEvent,
+  WorkflowPipeline,
+  UserEnvProfile,
+  LLMConfig,
+} from '../types/index.ts';
 
 const STORAGE_KEY_COLLECTIONS = 'repo_radar_collections_v1';
 const STORAGE_KEY_SUBSCRIPTIONS = 'repo_radar_subscriptions_v1';
 const STORAGE_KEY_EVENTS = 'repo_radar_change_events_v1';
 const STORAGE_KEY_PIPELINES = 'repo_radar_pipelines_v1';
+const STORAGE_KEY_ENV_PROFILE = 'repo_radar_env_profile_v3';
+const STORAGE_KEY_LLM_CONFIG = 'repo_radar_llm_config_v3';
+const STORAGE_KEY_CUSTOM_CATALOG = 'repo_radar_custom_catalog_v3';
+const STORAGE_KEY_GIST_ID = 'repo_radar_gist_id_v3';
+
+export interface CustomCatalogEntry {
+  domain: '学术研究' | '金融与经济研究' | '量化交易' | '视频与图片创作';
+  subcategory: string;
+  capability: string;
+  modality: string;
+  repo: Repository;
+  analysis: EvidenceAnalysis;
+}
+
+const memoryStore = new Map<string, string>();
+
+function safeGet(key: string): string | null {
+  if (typeof localStorage !== 'undefined') {
+    return localStorage.getItem(key);
+  }
+  return memoryStore.get(key) ?? null;
+}
+
+function safeSet(key: string, value: string): void {
+  if (typeof localStorage !== 'undefined') {
+    localStorage.setItem(key, value);
+    return;
+  }
+  memoryStore.set(key, value);
+}
 
 export class StorageService {
   // ================= 收藏管理 =================
   public static getItems(): CollectionItem[] {
     try {
-      const raw = localStorage.getItem(STORAGE_KEY_COLLECTIONS);
+      const raw = safeGet(STORAGE_KEY_COLLECTIONS);
       if (!raw) return [];
       return JSON.parse(raw);
     } catch {
@@ -21,7 +60,8 @@ export class StorageService {
     repo: Repository,
     analysis: EvidenceAnalysis,
     status: '待评估' | '已试用' | '已采用' | '不适合',
-    notes = ''
+    notes = '',
+    customTags?: string[]
   ): void {
     const items = this.getItems();
     const existingIndex = items.findIndex(it => it.repo_github_id === repo.github_id);
@@ -30,6 +70,7 @@ export class StorageService {
     if (existingIndex >= 0) {
       items[existingIndex].evaluation_status = status;
       if (notes) items[existingIndex].user_notes = notes;
+      if (customTags) items[existingIndex].custom_tags = customTags;
       items[existingIndex].updated_at = now;
       if (analysis) items[existingIndex].analysis = analysis;
     } else {
@@ -40,25 +81,24 @@ export class StorageService {
         analysis,
         evaluation_status: status,
         user_notes: notes,
-        custom_tags: [],
+        custom_tags: customTags || [],
         updated_at: now,
       });
     }
 
-    localStorage.setItem(STORAGE_KEY_COLLECTIONS, JSON.stringify(items));
+    safeSet(STORAGE_KEY_COLLECTIONS, JSON.stringify(items));
   }
 
   public static removeItem(github_id: number): void {
     const items = this.getItems().filter(it => it.repo_github_id !== github_id);
-    localStorage.setItem(STORAGE_KEY_COLLECTIONS, JSON.stringify(items));
+    safeSet(STORAGE_KEY_COLLECTIONS, JSON.stringify(items));
   }
 
   // ================= 订阅管理 (方向三) =================
   public static getSubscriptions(): Subscription[] {
     try {
-      const raw = localStorage.getItem(STORAGE_KEY_SUBSCRIPTIONS);
+      const raw = safeGet(STORAGE_KEY_SUBSCRIPTIONS);
       if (!raw) {
-        // 初始四大领域默认订阅
         const defaults: Subscription[] = [
           {
             id: 'sub_macro',
@@ -93,7 +133,7 @@ export class StorageService {
             is_active: true,
           },
         ];
-        localStorage.setItem(STORAGE_KEY_SUBSCRIPTIONS, JSON.stringify(defaults));
+        safeSet(STORAGE_KEY_SUBSCRIPTIONS, JSON.stringify(defaults));
         return defaults;
       }
       return JSON.parse(raw);
@@ -110,12 +150,12 @@ export class StorageService {
     } else {
       subs.unshift(sub);
     }
-    localStorage.setItem(STORAGE_KEY_SUBSCRIPTIONS, JSON.stringify(subs));
+    safeSet(STORAGE_KEY_SUBSCRIPTIONS, JSON.stringify(subs));
   }
 
   public static deleteSubscription(id: string): void {
     const subs = this.getSubscriptions().filter(s => s.id !== id);
-    localStorage.setItem(STORAGE_KEY_SUBSCRIPTIONS, JSON.stringify(subs));
+    safeSet(STORAGE_KEY_SUBSCRIPTIONS, JSON.stringify(subs));
   }
 
   public static updateSubscriptionWatermark(id: string, watermark: string): void {
@@ -124,14 +164,14 @@ export class StorageService {
     if (target) {
       target.last_pushed_watermark = watermark;
       target.last_checked_at = new Date().toISOString().replace('T', ' ').slice(0, 19);
-      localStorage.setItem(STORAGE_KEY_SUBSCRIPTIONS, JSON.stringify(subs));
+      safeSet(STORAGE_KEY_SUBSCRIPTIONS, JSON.stringify(subs));
     }
   }
 
   // ================= 变动事件管理 (方向三) =================
   public static getChangeEvents(): ChangeEvent[] {
     try {
-      const raw = localStorage.getItem(STORAGE_KEY_EVENTS);
+      const raw = safeGet(STORAGE_KEY_EVENTS);
       if (!raw) {
         const defaults: ChangeEvent[] = [
           {
@@ -159,7 +199,7 @@ export class StorageService {
             is_read: false,
           },
         ];
-        localStorage.setItem(STORAGE_KEY_EVENTS, JSON.stringify(defaults));
+        safeSet(STORAGE_KEY_EVENTS, JSON.stringify(defaults));
         return defaults;
       }
       return JSON.parse(raw);
@@ -171,18 +211,18 @@ export class StorageService {
   public static addChangeEvent(event: ChangeEvent): void {
     const events = this.getChangeEvents();
     events.unshift(event);
-    localStorage.setItem(STORAGE_KEY_EVENTS, JSON.stringify(events.slice(0, 80)));
+    safeSet(STORAGE_KEY_EVENTS, JSON.stringify(events.slice(0, 80)));
   }
 
   public static markAllEventsRead(): void {
     const events = this.getChangeEvents().map(e => ({ ...e, is_read: true }));
-    localStorage.setItem(STORAGE_KEY_EVENTS, JSON.stringify(events));
+    safeSet(STORAGE_KEY_EVENTS, JSON.stringify(events));
   }
 
-  // ================= 组合工作流台 (方向二) =================
+  // ================= 组合工作流台 (方向二 & 四) =================
   public static getPipelines(): WorkflowPipeline[] {
     try {
-      const raw = localStorage.getItem(STORAGE_KEY_PIPELINES);
+      const raw = safeGet(STORAGE_KEY_PIPELINES);
       if (!raw) return [];
       return JSON.parse(raw);
     } catch {
@@ -198,7 +238,138 @@ export class StorageService {
     } else {
       pipelines.unshift(pipeline);
     }
-    localStorage.setItem(STORAGE_KEY_PIPELINES, JSON.stringify(pipelines));
+    safeSet(STORAGE_KEY_PIPELINES, JSON.stringify(pipelines));
+  }
+
+  // ================= V0.3 本地环境画像管理 =================
+  public static getUserEnvProfile(): UserEnvProfile {
+    try {
+      const raw = safeGet(STORAGE_KEY_ENV_PROFILE);
+      if (!raw) {
+        return {
+          os: 'Windows',
+          python_version: '3.11',
+          has_nvidia_gpu: true,
+          vram_gb: 12,
+          disallow_paid_api: true,
+        };
+      }
+      return JSON.parse(raw);
+    } catch {
+      return {
+        os: 'Windows',
+        python_version: '3.11',
+        has_nvidia_gpu: true,
+        vram_gb: 12,
+        disallow_paid_api: true,
+      };
+    }
+  }
+
+  public static saveUserEnvProfile(profile: UserEnvProfile): void {
+    safeSet(STORAGE_KEY_ENV_PROFILE, JSON.stringify(profile));
+  }
+
+  // ================= V0.3 BYOK 大模型配置 =================
+  public static getLLMConfig(): LLMConfig {
+    try {
+      const raw = safeGet(STORAGE_KEY_LLM_CONFIG);
+      if (!raw) {
+        return {
+          enabled: false,
+          provider: 'deepseek',
+          base_url: 'https://api.deepseek.com/v1',
+          api_key: '',
+          model: 'deepseek-chat',
+        };
+      }
+      return JSON.parse(raw);
+    } catch {
+      return {
+        enabled: false,
+        provider: 'deepseek',
+        base_url: 'https://api.deepseek.com/v1',
+        api_key: '',
+        model: 'deepseek-chat',
+      };
+    }
+  }
+
+  public static saveLLMConfig(cfg: LLMConfig): void {
+    safeSet(STORAGE_KEY_LLM_CONFIG, JSON.stringify(cfg));
+  }
+
+  // ================= V0.3 Awesome 批量导入目录库 =================
+  public static getCustomCatalogItems(): CustomCatalogEntry[] {
+    try {
+      const raw = safeGet(STORAGE_KEY_CUSTOM_CATALOG);
+      if (!raw) return [];
+      return JSON.parse(raw);
+    } catch {
+      return [];
+    }
+  }
+
+  public static saveCustomCatalogItems(entries: CustomCatalogEntry[]): number {
+    const existing = this.getCustomCatalogItems();
+    const map = new Map<string, CustomCatalogEntry>();
+    existing.forEach(e => map.set(e.repo.full_name.toLowerCase(), e));
+    let added = 0;
+    for (const item of entries) {
+      const key = item.repo.full_name.toLowerCase();
+      if (!map.has(key)) {
+        map.set(key, item);
+        added++;
+      }
+    }
+    safeSet(STORAGE_KEY_CUSTOM_CATALOG, JSON.stringify(Array.from(map.values())));
+    return added;
+  }
+
+  // ================= V0.3 GitHub Gist 同步快照 =================
+  public static getGistId(): string {
+    return safeGet(STORAGE_KEY_GIST_ID) || '';
+  }
+
+  public static saveGistId(gistId: string): void {
+    safeSet(STORAGE_KEY_GIST_ID, gistId.trim());
+  }
+
+  public static exportFullSnapshot(): string {
+    const snapshot = {
+      version: '0.3.0',
+      exported_at: new Date().toISOString(),
+      collections: this.getItems(),
+      subscriptions: this.getSubscriptions(),
+      pipelines: this.getPipelines(),
+      custom_catalog: this.getCustomCatalogItems(),
+      env_profile: this.getUserEnvProfile(),
+    };
+    return JSON.stringify(snapshot, null, 2);
+  }
+
+  public static importFullSnapshot(jsonStr: string): { collectionsCount: number; subscriptionsCount: number; catalogCount: number } {
+    const data = JSON.parse(jsonStr);
+    if (Array.isArray(data.collections)) {
+      safeSet(STORAGE_KEY_COLLECTIONS, JSON.stringify(data.collections));
+    }
+    if (Array.isArray(data.subscriptions)) {
+      safeSet(STORAGE_KEY_SUBSCRIPTIONS, JSON.stringify(data.subscriptions));
+    }
+    if (Array.isArray(data.pipelines)) {
+      safeSet(STORAGE_KEY_PIPELINES, JSON.stringify(data.pipelines));
+    }
+    if (Array.isArray(data.custom_catalog)) {
+      safeSet(STORAGE_KEY_CUSTOM_CATALOG, JSON.stringify(data.custom_catalog));
+    }
+    if (data.env_profile && typeof data.env_profile === 'object') {
+      safeSet(STORAGE_KEY_ENV_PROFILE, JSON.stringify(data.env_profile));
+    }
+    return {
+      collectionsCount: Array.isArray(data.collections) ? data.collections.length : 0,
+      subscriptionsCount: Array.isArray(data.subscriptions) ? data.subscriptions.length : 0,
+      catalogCount: Array.isArray(data.custom_catalog) ? data.custom_catalog.length : 0,
+    };
   }
 
   // ================= 导出 =================

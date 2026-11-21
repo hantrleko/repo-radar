@@ -16,6 +16,73 @@ export interface Repository {
   is_archived?: boolean;
 }
 
+export interface RepoTreeInsight {
+  has_examples: boolean;
+  has_notebooks: boolean;
+  has_tests: boolean;
+  has_dockerfile: boolean;
+  has_ci_workflows: boolean;
+  has_replication_scripts: boolean;
+  detected_artifacts: string[];
+  total_files_scanned: number;
+}
+
+export interface IssuePainPoint {
+  number: number;
+  title: string;
+  html_url: string;
+  category: 'Windows兼容' | '安装编译' | '接口失效' | '显存/算力' | '维护警告';
+}
+
+export interface DomainProbeResult {
+  domain: '金融与经济研究' | '量化交易' | '学术研究' | '视频与图片创作' | '通用';
+  data_source_type?: string;
+  econometric_features?: string[];
+  quant_authenticity?: {
+    has_commission_slippage: boolean;
+    lookahead_guard: boolean;
+    engine_type: '事件驱动(Event-Driven)' | '向量化(Vectorized)' | '未知';
+  };
+  academic_metadata?: {
+    arxiv_id?: string;
+    doi?: string;
+    has_bibtex: boolean;
+    bibtex_snippet?: string;
+  };
+  media_license_split?: {
+    code_license: string;
+    weight_commercial_safe: '可商用' | '非商用/受限' | '未知';
+    min_vram_gb?: number;
+  };
+}
+
+export interface UserEnvProfile {
+  os: 'Windows' | 'macOS' | 'Linux';
+  python_version: string;
+  has_nvidia_gpu: boolean;
+  vram_gb: number;
+  disallow_paid_api: boolean;
+}
+
+export interface EnvCollisionAlert {
+  level: 'danger' | 'warning' | 'pass';
+  reason: string;
+}
+
+export interface GroundedQuote {
+  claim: string;
+  exact_quote: string;
+  verified: boolean;
+}
+
+export interface LLMConfig {
+  enabled: boolean;
+  provider: 'deepseek' | 'openai' | 'ollama';
+  base_url: string;
+  api_key: string;
+  model: string;
+}
+
 export interface EvidenceAnalysis {
   repo_github_id: number;
   chinese_purpose: string;
@@ -37,6 +104,12 @@ export interface EvidenceAnalysis {
   commit_sha?: string;
   inspected_at?: string;
   is_deep_inspected?: boolean;
+  // V0.3 新增深水区探针字段
+  tree_insight?: RepoTreeInsight;
+  issue_pain_points?: IssuePainPoint[];
+  domain_probe?: DomainProbeResult;
+  env_alerts?: EnvCollisionAlert[];
+  llm_grounded_quotes?: GroundedQuote[];
 }
 
 export interface ParsedQuery {
@@ -48,6 +121,7 @@ export interface ParsedQuery {
   exclusions: string[];
   target_languages: string[];
   generated_github_queries: string[];
+  llm_enhanced?: boolean;
 }
 
 export interface SearchResultItem {
@@ -109,4 +183,14 @@ export interface WorkflowPipeline {
   description: string;
   slots: WorkflowSlot[];
   created_at: string;
+}
+
+export interface AwesomeImportedCandidate {
+  owner: string;
+  name: string;
+  full_name: string;
+  html_url: string;
+  description: string;
+  inferred_domain: '学术研究' | '金融与经济研究' | '量化交易' | '视频与图片创作';
+  inferred_subcategory: string;
 }

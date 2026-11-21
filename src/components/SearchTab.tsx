@@ -1,25 +1,30 @@
 import React, { useState } from 'react';
 import {
   Search,
-  Sparkles,
   CheckCircle2,
   HelpCircle,
   ExternalLink,
   BookmarkPlus,
   Scale,
-  Cpu,
   Layers,
   ArrowRightLeft,
   Puzzle,
   FileSearch,
   BellRing,
-  Info
+  Info,
+  AlertTriangle,
+  FolderTree,
+  Copy,
+  BrainCircuit,
+  ShieldAlert,
 } from 'lucide-react';
 import { ParsedQuery, SearchResultItem, Repository, EvidenceAnalysis } from '../types';
 import { parseNaturalLanguageQuery, buildRelationQueries, scoreAndTriage } from '../services/queryService';
 import { SEED_ITEMS } from '../data/seedData';
 import { GitHubService } from '../services/githubService';
 import { StorageService } from '../services/storageService';
+import { EvidenceExtractor } from '../services/evidenceExtractor';
+import { LLMService } from '../services/llmService';
 
 interface SearchTabProps {
   onAddToCompare: (repo: Repository, analysis: EvidenceAnalysis) => void;
@@ -27,15 +32,41 @@ interface SearchTabProps {
   onOpenComposer: (repo: Repository, analysis: EvidenceAnalysis) => void;
 }
 
-export const SearchTab: React.FC<SearchTabProps> = ({ onAddToCompare, compareList, onOpenComposer }) => {
-  const sampleQueries = [
-    "我想找能下载宏观数据、做面板回归、输出 LaTeX 表格的 Python 项目，最好能在 Windows 上运行。",
-    "找能解析学术论文PDF、抽取表格和公式并转成Markdown的Python库，不要付费OCR服务。",
-    "支持国内商品期货CTP接口、带GUI界面并能进行CTA策略回测的开源交易框架。",
-    "用代码制作3Blue1Brown风格的数学和技术推导高清动画的Python库。",
+function enrichSeedCandidates(): { repo: Repository; analysis: EvidenceAnalysis }[] {
+  const userProfile = StorageService.getUserEnvProfile();
+  const customCatalog = StorageService.getCustomCatalogItems();
+  const allSeeds = [
+    ...SEED_ITEMS.map(i => ({ repo: i.repo, analysis: { ...i.analysis } })),
+    ...customCatalog.map(c => ({ repo: c.repo, analysis: { ...c.analysis } })),
   ];
 
-  // 搜索模式: 'nl' 自然语言 | 'repo' 以仓找仓
+  return allSeeds.map(({ repo, analysis }) => {
+    const rawText = `${repo.description} ${analysis.chinese_purpose} ${analysis.evidence_snippets.join(' ')}`;
+    if (!analysis.domain_probe) {
+      analysis.domain_probe = EvidenceExtractor.probeDomainVertical(
+        repo,
+        rawText,
+        analysis.external_dependencies.join(' ')
+      );
+    }
+    analysis.env_alerts = EvidenceExtractor.checkEnvCollision(
+      analysis,
+      userProfile,
+      rawText,
+      analysis.external_dependencies.join(' ')
+    );
+    return { repo, analysis };
+  });
+}
+
+export const SearchTab: React.FC<SearchTabProps> = ({ onAddToCompare, compareList, onOpenComposer }) => {
+  const sampleQueries = [
+    '我想找能下载宏观数据、做面板回归、输出 LaTeX 表格的 Python 项目，最好能在 Windows 上运行。',
+    '找能解析学术论文PDF、抽取表格和公式并转成Markdown的Python库，不要付费OCR服务。',
+    '支持国内商品期货CTP接口、带GUI界面并能进行CTA策略回测的开源交易框架。',
+    '用代码制作3Blue1Brown风格的数学和技术推导高清动画的Python库。',
+  ];
+
   const [searchMode, setSearchMode] = useState<'nl' | 'repo'>('nl');
   const [inputQuery, setInputQuery] = useState(sampleQueries[0]);
   const [repoUrlInput, setRepoUrlInput] = useState('https://github.com/bashtage/linearmodels');
@@ -43,7 +74,7 @@ export const SearchTab: React.FC<SearchTabProps> = ({ onAddToCompare, compareLis
 
   const [parsed, setParsed] = useState<ParsedQuery | null>(() => parseNaturalLanguageQuery(sampleQueries[0]));
   const [candidatesList, setCandidatesList] = useState<{ repo: Repository; analysis: EvidenceAnalysis }[]>(() =>
-    SEED_ITEMS.map(i => ({ repo: i.repo, analysis: i.analysis }))
+    enrichSeedCandidates()
   );
 
   const [results, setResults] = useState<{
@@ -52,7 +83,7 @@ export const SearchTab: React.FC<SearchTabProps> = ({ onAddToCompare, compareLis
     '部分满足需求': SearchResultItem[];
   } | null>(() => {
     const p = parseNaturalLanguageQuery(sampleQueries[0]);
-    return scoreAndTriage(SEED_ITEMS.map(i => ({ repo: i.repo, analysis: i.analysis })), p);
+    return scoreAndTriage(enrichSeedCandidates(), p);
   });
 
   const [isSearching, setIsSearching] = useState(false);
@@ -62,22 +93,23 @@ export const SearchTab: React.FC<SearchTabProps> = ({ onAddToCompare, compareLis
   const [statusMessage, setStatusMessage] = useState('');
   const [relationDesc, setRelationDesc] = useState('');
 
-  // 触发常规搜索
+  // 触发常规搜索（支持 V0.3 BYOK 大模型查询裂变）
   const handleSearch = async (queryText: string) => {
     if (!queryText.trim()) return;
     setIsSearching(true);
     setStatusMessage('');
     setRelationDesc('');
 
-    const p = parseNaturalLanguageQuery(queryText);
+    const baseParsed = parseNaturalLanguageQuery(queryText);
+    const p = await LLMService.expandQueryWithLLM(queryText, baseParsed);
     setParsed(p);
 
-    const localCandidates = SEED_ITEMS.map(i => ({ repo: i.repo, analysis: i.analysis }));
+    const localCandidates = enrichSeedCandidates();
     let remoteCandidates: { repo: Repository; analysis: EvidenceAnalysis }[] = [];
 
     if (p.generated_github_queries.length > 0) {
       const q = p.generated_github_queries[0];
-      remoteCandidates = await GitHubService.searchRemote(q, 4);
+      remoteCandidates = await GitHubService.searchRemote(q, 5);
     }
 
     const merged = [...localCandidates, ...remoteCandidates];
@@ -103,7 +135,7 @@ export const SearchTab: React.FC<SearchTabProps> = ({ onAddToCompare, compareLis
 
     const q = queries[0];
     const remote = await GitHubService.searchRemote(q, 6);
-    const local = SEED_ITEMS.filter(s => s.repo.github_id !== targetRepo.github_id).map(i => ({ repo: i.repo, analysis: i.analysis }));
+    const local = enrichSeedCandidates().filter(s => s.repo.github_id !== targetRepo.github_id);
 
     const merged = [...remote, ...local];
     const uniqueMap = new Map<number, { repo: Repository; analysis: EvidenceAnalysis }>();
@@ -131,7 +163,6 @@ export const SearchTab: React.FC<SearchTabProps> = ({ onAddToCompare, compareLis
     setIsSearching(false);
   };
 
-  // 根据 URL 寻找对应种子并触发关系检索
   const handleUrlRelationSearch = () => {
     const cleanUrl = repoUrlInput.trim().replace(/\/$/, '');
     const parts = cleanUrl.split('/');
@@ -139,34 +170,39 @@ export const SearchTab: React.FC<SearchTabProps> = ({ onAddToCompare, compareLis
     const ownerName = parts.pop() || '';
 
     const foundSeed = SEED_ITEMS.find(
-      s => s.repo.full_name.toLowerCase() === `${ownerName}/${repoName}`.toLowerCase() || s.repo.name.toLowerCase() === repoName.toLowerCase()
+      s =>
+        s.repo.full_name.toLowerCase() === `${ownerName}/${repoName}`.toLowerCase() ||
+        s.repo.name.toLowerCase() === repoName.toLowerCase()
     );
 
-    const targetRepo: Repository = foundSeed ? foundSeed.repo : {
-      github_id: Date.now(),
-      full_name: `${ownerName || 'unknown'}/${repoName}`,
-      owner: ownerName,
-      name: repoName,
-      description: '用户指定的外部仓库',
-      html_url: cleanUrl,
-      stars: 1000,
-      language: 'Python',
-      license_spdx: 'MIT',
-      pushed_at: new Date().toISOString(),
-      topics: [repoName],
-    };
+    const targetRepo: Repository = foundSeed
+      ? foundSeed.repo
+      : {
+          github_id: Date.now(),
+          full_name: `${ownerName || 'unknown'}/${repoName}`,
+          owner: ownerName,
+          name: repoName,
+          description: '用户指定的外部仓库',
+          html_url: cleanUrl,
+          stars: 1000,
+          language: 'Python',
+          license_spdx: 'MIT',
+          pushed_at: new Date().toISOString(),
+          topics: [repoName],
+        };
 
     handleRelationSearch(targetRepo, relationMode);
   };
 
-  // 深度取证前 N 项 (方向一)
+  // V0.3 深度取证前 N 项 (README + 依赖 + 目录树骨架 + Open Issues + 领域探针 + 环境画像碰撞)
   const handleDeepInspectTop = async () => {
     if (!results) return;
+    const savedLimit = parseInt(localStorage.getItem('repo_radar_inspect_limit') || '4', 10);
     setIsDeepInspecting(true);
-    setInspectProgress({ current: 0, total: 4 });
+    setInspectProgress({ current: 0, total: savedLimit });
 
     const currentCandidates = [...candidatesList];
-    const inspected = await GitHubService.batchInspectCandidates(currentCandidates, 4, (cur, tot) => {
+    const inspected = await GitHubService.batchInspectCandidates(currentCandidates, savedLimit, (cur, tot) => {
       setInspectProgress({ current: cur, total: tot });
     });
 
@@ -176,25 +212,26 @@ export const SearchTab: React.FC<SearchTabProps> = ({ onAddToCompare, compareLis
     }
     setIsDeepInspecting(false);
     setInspectProgress(null);
-    setStatusMessage('已完成前 4 项候选的实时 README 及依赖深度取证！');
+    setStatusMessage(`已完成前 ${savedLimit} 项候选的 README、目录树骨架、Open Issues 踩坑及领域专属探针深挖！`);
     setTimeout(() => setStatusMessage(''), 4000);
   };
 
   // 单个仓库深度取证
   const handleDeepInspectSingle = async (repo: Repository) => {
-    setStatusMessage(`正在实时抓取 ${repo.name} 的 README 及依赖文件...`);
+    setStatusMessage(`正在并发拉取 ${repo.name} 的 README、依赖树、全仓目录结构及 Open Issues...`);
     const { repo: newRepo, analysis: newAnalysis } = await GitHubService.deepInspectRepo(repo);
 
-    const updated = candidatesList.map(c => (c.repo.github_id === repo.github_id ? { repo: newRepo, analysis: newAnalysis } : c));
+    const updated = candidatesList.map(c =>
+      c.repo.github_id === repo.github_id ? { repo: newRepo, analysis: newAnalysis } : c
+    );
     setCandidatesList(updated);
     if (parsed) {
       setResults(scoreAndTriage(updated, parsed));
     }
-    setStatusMessage(`已成功获取 ${repo.name} 的真实 README 原文证据与依赖！`);
+    setStatusMessage(`已完成 ${repo.name} 的全维深水区探针取证！`);
     setTimeout(() => setStatusMessage(''), 3000);
   };
 
-  // 保存为订阅 (方向三)
   const handleSaveAsSubscription = () => {
     if (!parsed) return;
     const sub = {
@@ -217,20 +254,28 @@ export const SearchTab: React.FC<SearchTabProps> = ({ onAddToCompare, compareLis
     setTimeout(() => setStatusMessage(''), 3000);
   };
 
+  const handleCopyBibtex = (bib: string, repoName: string) => {
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard.writeText(bib);
+      setStatusMessage(`已复制 ${repoName} 的 BibTeX 学术引用格式到剪贴板！`);
+      setTimeout(() => setStatusMessage(''), 3000);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* 模式切换 & 搜索栏 */}
       <div className="bg-slate-800/60 border border-slate-700/80 rounded-2xl p-6 shadow-xl backdrop-blur space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-700/70 pb-4">
           <div>
-            <h2 className="text-xl font-bold text-white flex items-center space-x-2">
-              <span>📡 开源雷达智能发现与取证</span>
-              <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-normal">
-                V0.2 全功能
+            <h2 className="text-xl font-bold text-white flex items-center space-x-2 flex-wrap gap-y-1">
+              <span>📡 开源雷达智能发现与深水区取证</span>
+              <span className="text-xs px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 font-semibold">
+                V0.3 旗舰版
               </span>
             </h2>
             <p className="text-xs text-slate-400 mt-1">
-              支持自然语言精准需求、以仓找仓（替代/互补）、以及实时 README 依赖深度取证
+              支持目录树可复现嗅探、Open Issues 真实踩坑雷达、四大领域专业探针、本地环境画像碰撞与 BYOK 大模型引证精排
             </p>
           </div>
 
@@ -294,7 +339,7 @@ export const SearchTab: React.FC<SearchTabProps> = ({ onAddToCompare, compareLis
           </div>
         )}
 
-        {/* 模式 B：以仓找仓 (方向二) */}
+        {/* 模式 B：以仓找仓 */}
         {searchMode === 'repo' && (
           <div className="space-y-3">
             <div className="flex flex-wrap gap-2 items-center text-xs">
@@ -353,6 +398,12 @@ export const SearchTab: React.FC<SearchTabProps> = ({ onAddToCompare, compareLis
           <div className="pt-3 border-t border-slate-700/60 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
             <div className="flex flex-wrap gap-2 items-center">
               <span className="text-slate-400">提取硬性约束:</span>
+              {parsed.llm_enhanced && (
+                <span className="px-2 py-0.5 rounded bg-purple-500/20 border border-purple-500/40 text-purple-300 flex items-center space-x-1">
+                  <BrainCircuit className="w-3 h-3" />
+                  <span>BYOK大模型裂变</span>
+                </span>
+              )}
               <span className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-sky-400">
                 目标: {parsed.target || '通用'}
               </span>
@@ -378,8 +429,8 @@ export const SearchTab: React.FC<SearchTabProps> = ({ onAddToCompare, compareLis
                 <FileSearch className="w-3.5 h-3.5" />
                 <span>
                   {isDeepInspecting
-                    ? `实时深挖取证中 (${inspectProgress?.current}/${inspectProgress?.total})...`
-                    : '🔬 实时深度取证前 4 项 (Token驱动)'}
+                    ? `深挖骨架与Issue中 (${inspectProgress?.current}/${inspectProgress?.total})...`
+                    : '🔬 一键深水区取证前 4 项 (目录树+Issue+领域探针)'}
                 </span>
               </button>
 
@@ -413,8 +464,14 @@ export const SearchTab: React.FC<SearchTabProps> = ({ onAddToCompare, compareLis
                       : 'border-transparent text-slate-400 hover:text-slate-200'
                   }`}
                 >
-                  <span>{group === '较完整方案' ? '🌟' : group === '可组合模块' ? '🧩' : '🔍'} {group}</span>
-                  <span className={`text-xs px-2 py-0.5 rounded-full ${isActive ? 'bg-sky-500/20 text-sky-300' : 'bg-slate-800 text-slate-400'}`}>
+                  <span>
+                    {group === '较完整方案' ? '🌟' : group === '可组合模块' ? '🧩' : '🔍'} {group}
+                  </span>
+                  <span
+                    className={`text-xs px-2 py-0.5 rounded-full ${
+                      isActive ? 'bg-sky-500/20 text-sky-300' : 'bg-slate-800 text-slate-400'
+                    }`}
+                  >
                     {count}
                   </span>
                 </button>
@@ -432,15 +489,16 @@ export const SearchTab: React.FC<SearchTabProps> = ({ onAddToCompare, compareLis
                 const r = item.repository;
                 const a = item.analysis;
                 const isCompared = compareList.some(c => c.repo.github_id === r.github_id);
+                const probe = a.domain_probe;
 
                 return (
                   <div
                     key={idx}
-                    className="p-5 bg-slate-800/50 hover:bg-slate-800/80 border border-slate-700/70 hover:border-sky-500/50 rounded-2xl transition shadow-lg space-y-4"
+                    className="p-5 bg-slate-800/50 hover:bg-slate-800/80 border border-slate-700/70 hover:border-sky-500/50 rounded-2xl transition shadow-lg space-y-3.5"
                   >
                     <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
                       <div>
-                        <div className="flex items-center space-x-2.5 mb-1.5 flex-wrap gap-y-1">
+                        <div className="flex items-center space-x-2 mb-1.5 flex-wrap gap-y-1">
                           <a
                             href={r.html_url}
                             target="_blank"
@@ -466,7 +524,9 @@ export const SearchTab: React.FC<SearchTabProps> = ({ onAddToCompare, compareLis
                           {a.is_deep_inspected ? (
                             <span className="text-[11px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center space-x-1">
                               <CheckCircle2 className="w-3 h-3" />
-                              <span>已深度取证 (SHA: {a.commit_sha || a.readme_hash?.slice(0, 6) || 'latest'})</span>
+                              <span>
+                                已深水区取证 (SHA: {a.commit_sha || a.readme_hash?.slice(0, 6) || 'latest'})
+                              </span>
                             </span>
                           ) : (
                             <button
@@ -474,18 +534,27 @@ export const SearchTab: React.FC<SearchTabProps> = ({ onAddToCompare, compareLis
                               className="text-[11px] px-2 py-0.5 rounded-full bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 border border-sky-500/30 flex items-center space-x-1 transition"
                             >
                               <FileSearch className="w-3 h-3" />
-                              <span>拉取 README 取证</span>
+                              <span>深挖目录树与Issue</span>
                             </button>
                           )}
                         </div>
 
-                        <p className="text-sm text-slate-200 leading-relaxed font-medium">
-                          {a.chinese_purpose}
-                        </p>
+                        <p className="text-sm text-slate-200 leading-relaxed font-medium">{a.chinese_purpose}</p>
                       </div>
 
                       {/* 卡片右侧动作 */}
                       <div className="flex items-center space-x-2 shrink-0 flex-wrap gap-y-2">
+                        {probe?.academic_metadata?.bibtex_snippet && (
+                          <button
+                            onClick={() => handleCopyBibtex(probe.academic_metadata!.bibtex_snippet!, r.name)}
+                            className="flex items-center space-x-1 px-2.5 py-1.5 rounded-lg bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/30 text-purple-300 text-xs font-medium transition"
+                            title="一键复制标准 BibTeX 学术引用条目"
+                          >
+                            <Copy className="w-3.5 h-3.5" />
+                            <span>复制 BibTeX</span>
+                          </button>
+                        )}
+
                         <button
                           onClick={() => handleSaveToCollection(r, a)}
                           className="flex items-center space-x-1 px-3 py-1.5 rounded-lg bg-sky-500/10 hover:bg-sky-500/20 border border-sky-500/30 text-sky-400 text-xs font-medium transition"
@@ -509,19 +578,155 @@ export const SearchTab: React.FC<SearchTabProps> = ({ onAddToCompare, compareLis
                       </div>
                     </div>
 
+                    {/* V0.3 本地环境画像碰撞红黄绿灯条 */}
+                    {a.env_alerts && a.env_alerts.length > 0 && (
+                      <div className="flex flex-wrap gap-2">
+                        {a.env_alerts.map((al, ai) => (
+                          <span
+                            key={ai}
+                            className={`text-[11px] px-2.5 py-1 rounded-lg border font-medium flex items-center space-x-1.5 ${
+                              al.level === 'danger'
+                                ? 'bg-rose-500/15 border-rose-500/40 text-rose-300'
+                                : al.level === 'warning'
+                                  ? 'bg-amber-500/15 border-amber-500/40 text-amber-300'
+                                  : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+                            }`}
+                          >
+                            {al.level === 'danger' ? (
+                              <ShieldAlert className="w-3.5 h-3.5 shrink-0" />
+                            ) : al.level === 'warning' ? (
+                              <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                            ) : (
+                              <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                            )}
+                            <span>{al.reason}</span>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* V0.3 四大垂直领域专属探针与目录树骨架徽标 */}
+                    {(probe || a.tree_insight) && (
+                      <div className="p-2.5 bg-slate-950/60 rounded-xl border border-slate-800/90 flex flex-wrap items-center gap-2 text-[11px]">
+                        {probe && probe.domain !== '通用' && (
+                          <span className="px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300 font-semibold border border-indigo-500/30">
+                            🎯 领域探针: {probe.domain}
+                          </span>
+                        )}
+
+                        {/* 金融经济探针 */}
+                        {probe?.data_source_type && (
+                          <span className="px-2 py-0.5 rounded bg-slate-900 border border-slate-700 text-sky-300">
+                            📊 数据源: {probe.data_source_type}
+                          </span>
+                        )}
+                        {probe?.econometric_features?.map((ef, efi) => (
+                          <span key={efi} className="px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300">
+                            📈 {ef}
+                          </span>
+                        ))}
+
+                        {/* 量化交易探针 */}
+                        {probe?.quant_authenticity && (
+                          <>
+                            <span className="px-2 py-0.5 rounded bg-slate-900 border border-slate-700 text-amber-300">
+                              ⚙️ 架构: {probe.quant_authenticity.engine_type}
+                            </span>
+                            <span
+                              className={`px-2 py-0.5 rounded ${
+                                probe.quant_authenticity.has_commission_slippage
+                                  ? 'bg-emerald-500/15 text-emerald-300'
+                                  : 'bg-slate-800 text-slate-400'
+                              }`}
+                            >
+                              {probe.quant_authenticity.has_commission_slippage
+                                ? '✓ 含手续费/滑点建模证据'
+                                : '手续费/滑点未见明文'}
+                            </span>
+                            {probe.quant_authenticity.lookahead_guard && (
+                              <span className="px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300">
+                                ✓ 防未来函数/PIT声明
+                              </span>
+                            )}
+                          </>
+                        )}
+
+                        {/* 学术研究探针 */}
+                        {probe?.academic_metadata?.arxiv_id && (
+                          <span className="px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 font-mono">
+                            📄 arXiv: {probe.academic_metadata.arxiv_id}
+                          </span>
+                        )}
+                        {probe?.academic_metadata?.doi && (
+                          <span className="px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 font-mono">
+                            🔗 DOI: {probe.academic_metadata.doi}
+                          </span>
+                        )}
+
+                        {/* 视觉与媒体探针 */}
+                        {probe?.media_license_split && (
+                          <>
+                            <span
+                              className={`px-2 py-0.5 rounded ${
+                                probe.media_license_split.weight_commercial_safe === '可商用'
+                                  ? 'bg-emerald-500/15 text-emerald-300'
+                                  : probe.media_license_split.weight_commercial_safe === '非商用/受限'
+                                    ? 'bg-rose-500/20 text-rose-300'
+                                    : 'bg-slate-800 text-slate-400'
+                              }`}
+                            >
+                              ⚖️ 权重商用性: {probe.media_license_split.weight_commercial_safe}
+                            </span>
+                            {probe.media_license_split.min_vram_gb && (
+                              <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 font-mono">
+                                🎮 最低显存水位: &gt;= {probe.media_license_split.min_vram_gb}GB VRAM
+                              </span>
+                            )}
+                          </>
+                        )}
+
+                        {/* 目录树可复现骨架 */}
+                        {a.tree_insight && a.tree_insight.detected_artifacts.length > 0 && (
+                          <div className="flex items-center flex-wrap gap-1.5 pl-1">
+                            <FolderTree className="w-3.5 h-3.5 text-sky-400" />
+                            {a.tree_insight.detected_artifacts.map((art, arti) => (
+                              <span
+                                key={arti}
+                                className="px-2 py-0.5 rounded bg-sky-500/15 text-sky-300 border border-sky-500/30"
+                              >
+                                {art}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
                     {/* 依赖清单与环境证据 */}
                     <div className="p-3 bg-slate-900/60 rounded-xl border border-slate-800/80 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs">
                       <div className="flex items-center space-x-2">
                         <span className="text-slate-400">操作系统支持证据:</span>
-                        <span className={a.os_compatibility.Windows === '支持' ? 'text-emerald-400 font-semibold' : 'text-slate-400'}>
+                        <span
+                          className={
+                            a.os_compatibility.Windows === '支持' ? 'text-emerald-400 font-semibold' : 'text-slate-400'
+                          }
+                        >
                           Win: {a.os_compatibility.Windows}
                         </span>
                         <span className="text-slate-600">|</span>
-                        <span className={a.os_compatibility.Linux === '支持' ? 'text-emerald-400 font-semibold' : 'text-slate-400'}>
+                        <span
+                          className={
+                            a.os_compatibility.Linux === '支持' ? 'text-emerald-400 font-semibold' : 'text-slate-400'
+                          }
+                        >
                           Linux: {a.os_compatibility.Linux}
                         </span>
                         <span className="text-slate-600">|</span>
-                        <span className={a.os_compatibility.macOS === '支持' ? 'text-emerald-400 font-semibold' : 'text-slate-400'}>
+                        <span
+                          className={
+                            a.os_compatibility.macOS === '支持' ? 'text-emerald-400 font-semibold' : 'text-slate-400'
+                          }
+                        >
                           macOS: {a.os_compatibility.macOS}
                         </span>
                       </div>
@@ -541,14 +746,43 @@ export const SearchTab: React.FC<SearchTabProps> = ({ onAddToCompare, compareLis
                       {a.external_dependencies && a.external_dependencies.length > 0 && (
                         <div className="flex items-center space-x-1.5 flex-wrap">
                           <span className="text-slate-400">核心依赖:</span>
-                          {a.external_dependencies.slice(0, 5).map((dep, di) => (
-                            <span key={di} className="px-1.5 py-0.5 rounded bg-slate-800 text-[11px] font-mono text-sky-300">
+                          {a.external_dependencies.slice(0, 6).map((dep, di) => (
+                            <span
+                              key={di}
+                              className="px-1.5 py-0.5 rounded bg-slate-800 text-[11px] font-mono text-sky-300"
+                            >
                               {dep}
                             </span>
                           ))}
                         </div>
                       )}
                     </div>
+
+                    {/* V0.3 社区真实踩坑 Issue 雷达 */}
+                    {a.issue_pain_points && a.issue_pain_points.length > 0 && (
+                      <div className="p-2.5 bg-amber-500/10 border border-amber-500/30 rounded-xl space-y-1.5 text-xs">
+                        <div className="font-semibold text-amber-300 flex items-center space-x-1.5">
+                          <AlertTriangle className="w-3.5 h-3.5" />
+                          <span>社区真实避坑雷达 (Open Issues 实时扫描):</span>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5">
+                          {a.issue_pain_points.map(iss => (
+                            <a
+                              key={iss.number}
+                              href={iss.html_url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="p-1.5 rounded bg-slate-950/70 hover:bg-slate-900 border border-amber-500/20 flex items-center justify-between text-[11px] text-slate-300 transition"
+                            >
+                              <span className="truncate">
+                                <strong className="text-amber-400">[{iss.category}]</strong> #{iss.number} {iss.title}
+                              </span>
+                              <ExternalLink className="w-3 h-3 shrink-0 ml-1 opacity-60" />
+                            </a>
+                          ))}
+                        </div>
+                      </div>
+                    )}
 
                     {/* 满足与存疑清单 */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs pt-1">
@@ -581,14 +815,33 @@ export const SearchTab: React.FC<SearchTabProps> = ({ onAddToCompare, compareLis
                       )}
                     </div>
 
-                    {/* 原文证据片段 */}
+                    {/* 原文证据片段 & BYOK 大模型强制引证核验结果 */}
+                    {a.llm_grounded_quotes && a.llm_grounded_quotes.length > 0 && (
+                      <div className="p-2.5 bg-purple-500/10 border border-purple-500/30 rounded-xl space-y-1 text-[11px]">
+                        <div className="text-purple-300 font-semibold flex items-center space-x-1">
+                          <BrainCircuit className="w-3.5 h-3.5" />
+                          <span>BYOK 大模型原文强制引证核验:</span>
+                        </div>
+                        {a.llm_grounded_quotes.map((gq, gi) => (
+                          <div key={gi} className="text-slate-300 flex items-start space-x-2">
+                            <span className={gq.verified ? 'text-emerald-400 shrink-0' : 'text-rose-400 shrink-0'}>
+                              {gq.verified ? '[✓ 原文已核实]' : '[✗ 未查到原文/拦截]'}
+                            </span>
+                            <span>
+                              <strong>{gq.claim}</strong> — <code className="text-slate-400">"{gq.exact_quote}"</code>
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
                     {a.evidence_snippets && a.evidence_snippets.length > 0 && (
                       <div className="text-[11px] font-mono text-slate-400 bg-slate-950/80 p-2.5 rounded-lg border border-slate-900 truncate">
                         {a.evidence_snippets[0]}
                       </div>
                     )}
 
-                    {/* 快捷关系探索与工作流组装按钮栏 (方向二) */}
+                    {/* 快捷关系探索与工作流组装按钮栏 */}
                     <div className="pt-2 border-t border-slate-700/50 flex flex-wrap items-center justify-between gap-2 text-xs">
                       <div className="flex items-center space-x-2">
                         <span className="text-slate-400">以该仓探索:</span>
@@ -619,7 +872,7 @@ export const SearchTab: React.FC<SearchTabProps> = ({ onAddToCompare, compareLis
                         className="flex items-center space-x-1 px-3 py-1 rounded-lg bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 font-medium transition"
                       >
                         <Layers className="w-3.5 h-3.5" />
-                        <span>装入研究工作流</span>
+                        <span>装入研究工作流 & 导出脚手架</span>
                       </button>
                     </div>
                   </div>

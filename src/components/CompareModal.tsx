@@ -100,6 +100,26 @@ export const CompareModal: React.FC<CompareModalProps> = ({ items, onClose, onCl
                         {analysis.commit_sha || analysis.readme_hash?.slice(0, 8) || '元数据级'}
                       </span>
                     </div>
+                    <div className="flex justify-between border-b border-slate-700/50 pb-1.5">
+                      <span className="text-slate-400">可复现骨架:</span>
+                      <span className="text-sky-300 text-[11px] text-right">
+                        {analysis.tree_insight && analysis.tree_insight.detected_artifacts.length > 0
+                          ? analysis.tree_insight.detected_artifacts.slice(0, 2).join(' / ')
+                          : '未深挖目录树'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between border-b border-slate-700/50 pb-1.5">
+                      <span className="text-slate-400">踩坑 Issue 数:</span>
+                      <span
+                        className={
+                          analysis.issue_pain_points && analysis.issue_pain_points.length > 0
+                            ? 'text-amber-400 font-semibold'
+                            : 'text-emerald-400'
+                        }
+                      >
+                        {analysis.issue_pain_points ? `${analysis.issue_pain_points.length} 条预警` : '0 条'}
+                      </span>
+                    </div>
                   </div>
 
                   {analysis.external_dependencies && analysis.external_dependencies.length > 0 && (

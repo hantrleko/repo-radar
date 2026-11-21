@@ -85,7 +85,7 @@ export const App: React.FC = () => {
       {/* Footer */}
       <footer className="border-t border-slate-800/80 py-6 text-center text-xs text-slate-500">
         <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <p>个人开源项目雷达 (RepoRadar CN) · V0.2 · 秉持中文优先、事实证据驱动、零模型幻觉原则</p>
+          <p>个人开源项目雷达 (RepoRadar CN) · V0.3 · 秉持中文优先、深水区证据驱动、零模型幻觉原则</p>
           <div className="flex items-center space-x-4">
             <a href="https://github.com/hantrleko/repo-radar" target="_blank" rel="noreferrer" className="hover:text-slate-300 transition">
               GitHub 源码

@@ -1,5 +1,8 @@
-import type { Repository, EvidenceAnalysis, ChangeEvent } from '../types/index.ts';
+import type { Repository, EvidenceAnalysis, ChangeEvent, AwesomeImportedCandidate } from '../types/index.ts';
 import { EvidenceExtractor } from './evidenceExtractor.ts';
+import { StorageService } from './storageService.ts';
+import { LLMService } from './llmService.ts';
+import { GistSyncService } from './gistSyncService.ts';
 
 export class GitHubService {
   private static getToken(): string {
@@ -26,39 +29,42 @@ export class GitHubService {
   /**
    * 搜索 GitHub 仓库
    */
-  public static async searchRemote(query: string, limit = 6): Promise<{ repo: Repository; analysis: EvidenceAnalysis }[]> {
+  public static async searchRemote(
+    query: string,
+    perPage = 6
+  ): Promise<{ repo: Repository; analysis: EvidenceAnalysis }[]> {
     const headers = this.getHeaders();
+    const url = `https://api.github.com/search/repositories?q=${encodeURIComponent(query)}&sort=stars&order=desc&per_page=${perPage}`;
+
     try {
-      const res = await fetch(
-        `https://api.github.com/search/repositories?q=${encodeURIComponent(query)}&sort=stars&order=desc&per_page=${limit}`,
-        { headers }
-      );
-
+      const res = await fetch(url, { headers });
       if (!res.ok) {
-        throw new Error(`GitHub API HTTP ${res.status}`);
+        return [];
       }
-
       const data = await res.json();
-      const items = data.items || [];
+      const items: any[] = data.items || [];
+      const userProfile = StorageService.getUserEnvProfile();
 
-      return items.map((item: any) => {
+      return items.map(item => {
         const repo: Repository = {
           github_id: item.id,
           full_name: item.full_name,
           owner: item.owner?.login || '',
           name: item.name,
-          description: item.description || '',
+          description: item.description || '暂无描述',
           html_url: item.html_url,
           stars: item.stargazers_count || 0,
           forks: item.forks_count || 0,
           open_issues: item.open_issues_count || 0,
-          language: item.language || '未知',
-          license_spdx: item.license?.spdx_id || '未声明',
+          language: item.language || 'Unknown',
+          license_spdx: item.license?.spdx_id || '未知',
           pushed_at: item.pushed_at || '',
           default_branch: item.default_branch || 'main',
           topics: item.topics || [],
-          is_archived: item.archived || false,
+          is_archived: Boolean(item.archived),
         };
+
+        const domainProbe = EvidenceExtractor.probeDomainVertical(repo, repo.description, '');
 
         const analysis: EvidenceAnalysis = {
           repo_github_id: repo.github_id,
@@ -74,7 +80,10 @@ export class GitHubService {
           maintenance_status: repo.is_archived ? '已归档' : '活跃',
           evidence_snippets: [repo.description ? `描述: ${repo.description}` : '已通过实时 GitHub 搜索索引抓取'],
           is_deep_inspected: false,
+          domain_probe: domainProbe,
         };
+
+        analysis.env_alerts = EvidenceExtractor.checkEnvCollision(analysis, userProfile, repo.description, '');
 
         return { repo, analysis };
       });
@@ -99,7 +108,6 @@ export class GitHubService {
     try {
       const res = await fetch(`https://api.github.com/repos/${owner}/${repo}/readme`, { headers });
       if (res.status === 304 && hasStorage) {
-        // 未修改，返回本地缓存
         const cached = localStorage.getItem(cacheKey);
         if (cached) {
           const parsed = JSON.parse(cached);
@@ -115,7 +123,6 @@ export class GitHubService {
       const newEtag = res.headers.get('ETag') || '';
       if (newEtag && hasStorage) localStorage.setItem(etagKey, newEtag);
 
-      // 计算哈希
       const hash = await EvidenceExtractor.computeHash(text);
       if (hasStorage) {
         localStorage.setItem(cacheKey, JSON.stringify({ text, sha: hash.slice(0, 10) }));
@@ -147,16 +154,65 @@ export class GitHubService {
   }
 
   /**
-   * 深度取证：实时拉取 README 及依赖文件，并通过 EvidenceExtractor 提取客观证据
+   * V0.3 维度一：拉取仓库目录树结构 (1 次 API 请求嗅探全仓文件骨架)
+   */
+  public static async fetchRepoTree(owner: string, repo: string, branch = 'HEAD'): Promise<string[]> {
+    const headers = this.getHeaders();
+    try {
+      const res = await fetch(`https://api.github.com/repos/${owner}/${repo}/git/trees/${branch}?recursive=1`, { headers });
+      if (!res.ok) return [];
+      const data = await res.json();
+      if (!Array.isArray(data.tree)) return [];
+      return data.tree.slice(0, 800).map((item: any) => item.path || '');
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * V0.3 维度一：拉取仓库最近 Open Issues (用于识别社区真实踩坑)
+   */
+  public static async fetchOpenIssues(
+    owner: string,
+    repo: string
+  ): Promise<{ number: number; title: string; html_url: string; body?: string }[]> {
+    const headers = this.getHeaders();
+    try {
+      const res = await fetch(
+        `https://api.github.com/repos/${owner}/${repo}/issues?state=open&sort=updated&per_page=15`,
+        { headers }
+      );
+      if (!res.ok) return [];
+      const data = await res.json();
+      if (!Array.isArray(data)) return [];
+      return data
+        .filter((iss: any) => !iss.pull_request)
+        .map((iss: any) => ({
+          number: iss.number,
+          title: iss.title || '',
+          html_url: iss.html_url || '',
+          body: iss.body || '',
+        }));
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * V0.3 深度取证：并发拉取 README + 依赖文件 + 目录树骨架 + Open Issues + 可选 BYOK 大模型强制引证提取
    */
   public static async deepInspectRepo(repo: Repository): Promise<{ repo: Repository; analysis: EvidenceAnalysis }> {
-    const [{ text: readmeText, sha }, depText] = await Promise.all([
+    const branch = repo.default_branch || 'HEAD';
+    const [{ text: readmeText, sha }, depText, filePaths, issues] = await Promise.all([
       this.fetchRepoReadme(repo.owner, repo.name),
       this.fetchDependencyFile(repo.owner, repo.name),
+      this.fetchRepoTree(repo.owner, repo.name, branch),
+      this.fetchOpenIssues(repo.owner, repo.name),
     ]);
 
+    const userProfile = StorageService.getUserEnvProfile();
+
     if (!readmeText) {
-      // 无法获取 README 时降级
       return {
         repo,
         analysis: {
@@ -173,14 +229,39 @@ export class GitHubService {
           maintenance_status: repo.is_archived ? '已归档' : '活跃',
           evidence_snippets: ['未查找到 README 文本证据'],
           is_deep_inspected: false,
+          tree_insight: filePaths.length > 0 ? EvidenceExtractor.analyzeRepoTree(filePaths) : undefined,
+          issue_pain_points: issues.length > 0 ? EvidenceExtractor.analyzeIssues(issues) : undefined,
         },
       };
     }
 
     const hash = await EvidenceExtractor.computeHash(readmeText);
-    const analysis = EvidenceExtractor.extractFromReadme(repo, readmeText, depText);
+    const analysis = EvidenceExtractor.extractFromReadme(
+      repo,
+      readmeText,
+      depText,
+      filePaths,
+      issues,
+      userProfile
+    );
     analysis.readme_hash = hash;
     analysis.commit_sha = sha;
+
+    // 若用户开启了 BYOK 大模型双擎，附加执行带原文引证校验的深度提取
+    const llmGrounded = await LLMService.extractGroundedEvidenceWithLLM(repo, readmeText);
+    if (llmGrounded) {
+      if (llmGrounded.chinese_purpose && llmGrounded.chinese_purpose.length >= 10) {
+        analysis.chinese_purpose = llmGrounded.chinese_purpose;
+      }
+      analysis.llm_grounded_quotes = llmGrounded.grounded_quotes;
+      for (const q of llmGrounded.grounded_quotes) {
+        if (q.verified) {
+          analysis.satisfied_conditions.push(`[LLM引证已核实] ${q.claim}`);
+        } else {
+          analysis.unknown_conditions.push(`[LLM引证未查到原文/已拦截] ${q.claim}`);
+        }
+      }
+    }
 
     return { repo, analysis };
   }
@@ -212,6 +293,26 @@ export class GitHubService {
   }
 
   /**
+   * V0.3 维度五：拉取指定 Awesome 仓库的 README 并批量解析其中的 GitHub 候选项目
+   */
+  public static async fetchAwesomeListCandidates(
+    repoUrlOrFullName: string
+  ): Promise<AwesomeImportedCandidate[]> {
+    const clean = repoUrlOrFullName
+      .trim()
+      .replace(/^https?:\/\/github\.com\//i, '')
+      .replace(/\/$/, '');
+    const parts = clean.split('/');
+    if (parts.length < 2) return [];
+
+    const owner = parts[0];
+    const repo = parts[1];
+    const { text } = await this.fetchRepoReadme(owner, repo);
+    if (!text) return [];
+    return GistSyncService.parseAwesomeMarkdown(text);
+  }
+
+  /**
    * 对比仓库与旧快照，生成增量 ChangeEvent
    */
   public static async checkRepoForDiff(
@@ -222,7 +323,6 @@ export class GitHubService {
     const events: ChangeEvent[] = [];
     const now = new Date().toISOString().replace('T', ' ').slice(0, 19);
 
-    // 1. 检查 README 内容哈希变化
     if (oldReadmeHash) {
       const { text: newReadme } = await this.fetchRepoReadme(repo.owner, repo.name);
       if (newReadme) {
@@ -240,7 +340,6 @@ export class GitHubService {
       }
     }
 
-    // 2. 检查归档状态
     if (repo.is_archived) {
       events.push({
         id: `evt_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
@@ -252,7 +351,6 @@ export class GitHubService {
       });
     }
 
-    // 3. 检查代码推送更新
     if (oldPushedAt && repo.pushed_at && repo.pushed_at > oldPushedAt) {
       events.push({
         id: `evt_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,

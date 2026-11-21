@@ -33,7 +33,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           <div>
             <div className="flex items-center space-x-2">
               <span className="font-bold text-lg text-white tracking-tight">RepoRadar CN</span>
-              <span className="text-[11px] px-1.5 py-0.5 rounded bg-sky-500/10 text-sky-400 border border-sky-500/20">Web 版</span>
+              <span className="text-[11px] px-1.5 py-0.5 rounded bg-sky-500/10 text-sky-400 border border-sky-500/20">V0.3 旗舰版</span>
             </div>
             <p className="text-xs text-slate-400 hidden sm:block">中文优先 · 证据驱动 · 适用性决策</p>
           </div>

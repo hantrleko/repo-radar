@@ -1,14 +1,29 @@
 import React, { useState } from 'react';
-import { X, Layers, Save, Download, ArrowRight, CheckCircle2, Plus } from 'lucide-react';
-import { Repository, EvidenceAnalysis, WorkflowPipeline } from '../types';
+import {
+  X,
+  Layers,
+  Save,
+  Download,
+  CheckCircle2,
+  FileCode,
+  PackageCheck,
+  BookOpen,
+  Eye,
+} from 'lucide-react';
+import { Repository, EvidenceAnalysis, WorkflowPipeline, WorkflowSlot } from '../types';
 import { StorageService } from '../services/storageService';
+import { ScaffoldGenerator } from '../services/scaffoldGenerator';
+import { SEED_ITEMS } from '../data/seedData';
 
 interface WorkflowComposerModalProps {
   onClose: () => void;
   incomingRepo?: { repo: Repository; analysis: EvidenceAnalysis };
 }
 
-const TEMPLATES: Record<string, { title: string; domain: string; description: string; steps: { name: string; cap: string; hypothesis: string }[] }> = {
+const TEMPLATES: Record<
+  string,
+  { title: string; domain: string; description: string; steps: { name: string; cap: string; hypothesis: string }[] }
+> = {
   macro_econometrics: {
     title: '宏观与金融计量工作流',
     domain: '金融与经济研究',
@@ -58,16 +73,45 @@ const TEMPLATES: Record<string, { title: string; domain: string; description: st
 export const WorkflowComposerModal: React.FC<WorkflowComposerModalProps> = ({ onClose, incomingRepo }) => {
   const templateKeys = Object.keys(TEMPLATES);
   const [selectedTemplateKey, setSelectedTemplateKey] = useState<string>(templateKeys[0]);
-  const [currentSlots, setCurrentSlots] = useState<{ [index: number]: Repository }>({});
+  const [currentSlots, setCurrentSlots] = useState<{
+    [index: number]: { repo: Repository; analysis?: EvidenceAnalysis };
+  }>({});
+  const [previewMode, setPreviewMode] = useState<'none' | 'requirements' | 'python'>('none');
   const [toast, setToast] = useState('');
 
   const currentTemplate = TEMPLATES[selectedTemplateKey];
 
-  const handleAssignRepo = (stepIndex: number) => {
+  // 汇总可选仓库池（收藏夹 + 种子库）
+  const availablePool: { repo: Repository; analysis?: EvidenceAnalysis }[] = React.useMemo(() => {
+    const map = new Map<number, { repo: Repository; analysis?: EvidenceAnalysis }>();
     if (incomingRepo) {
-      setCurrentSlots(prev => ({ ...prev, [stepIndex]: incomingRepo.repo }));
-      setToast(`已将 ${incomingRepo.repo.name} 放入 [${currentTemplate.steps[stepIndex].name}] 槽位！`);
-      setTimeout(() => setToast(''), 3000);
+      map.set(incomingRepo.repo.github_id, incomingRepo);
+    }
+    StorageService.getItems().forEach(it => map.set(it.repo_github_id, { repo: it.repo, analysis: it.analysis }));
+    SEED_ITEMS.forEach(s => {
+      if (!map.has(s.repo.github_id)) {
+        map.set(s.repo.github_id, { repo: s.repo, analysis: s.analysis });
+      }
+    });
+    return Array.from(map.values());
+  }, [incomingRepo]);
+
+  const buildWorkflowSlots = (): WorkflowSlot[] =>
+    currentTemplate.steps.map((st, i) => ({
+      id: `slot_${i}`,
+      step_name: st.name,
+      capability: st.cap,
+      repo: currentSlots[i]?.repo,
+      analysis: currentSlots[i]?.analysis,
+      interface_hypothesis: st.hypothesis,
+    }));
+
+  const handleAssignRepo = (stepIndex: number, target?: { repo: Repository; analysis?: EvidenceAnalysis }) => {
+    const chosen = target || incomingRepo;
+    if (chosen) {
+      setCurrentSlots(prev => ({ ...prev, [stepIndex]: chosen }));
+      setToast(`已将 ${chosen.repo.name} 装入 [${currentTemplate.steps[stepIndex].name}] 槽位！`);
+      setTimeout(() => setToast(''), 2500);
     }
   };
 
@@ -78,13 +122,7 @@ export const WorkflowComposerModal: React.FC<WorkflowComposerModalProps> = ({ on
       domain: currentTemplate.domain,
       description: currentTemplate.description,
       created_at: new Date().toISOString().replace('T', ' ').slice(0, 19),
-      slots: currentTemplate.steps.map((st, i) => ({
-        id: `slot_${i}`,
-        step_name: st.name,
-        capability: st.cap,
-        repo: currentSlots[i],
-        interface_hypothesis: st.hypothesis,
-      })),
+      slots: buildWorkflowSlots(),
     };
 
     StorageService.savePipeline(pipeline);
@@ -92,7 +130,18 @@ export const WorkflowComposerModal: React.FC<WorkflowComposerModalProps> = ({ on
     setTimeout(() => setToast(''), 3000);
   };
 
+  const triggerDownload = (content: string, filename: string, mime: string) => {
+    const blob = new Blob([content], { type: mime });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const handleExportMarkdown = () => {
+    const slots = buildWorkflowSlots();
     const lines = [
       `# 🛠️ 开源工作流方案：${currentTemplate.title}`,
       `> 领域：${currentTemplate.domain}`,
@@ -100,38 +149,70 @@ export const WorkflowComposerModal: React.FC<WorkflowComposerModalProps> = ({ on
       '',
       '---',
       '',
-      '## 模块拼接与数据交接规范',
+      '## 一、模块拼接与数据交接规范',
       '',
     ];
 
-    currentTemplate.steps.forEach((st, idx) => {
-      const assigned = currentSlots[idx];
-      lines.push(`### 环节 ${idx + 1}：${st.name}`);
-      lines.push(`* **核心能力**：${st.cap}`);
-      lines.push(`* **接口/交接假设**：\`${st.hypothesis}\``);
-      if (assigned) {
-        lines.push(`* **选定开源仓库**：[${assigned.full_name}](${assigned.html_url}) (⭐ ${assigned.stars.toLocaleString()})`);
+    slots.forEach((st, idx) => {
+      lines.push(`### 环节 ${idx + 1}：${st.step_name}`);
+      lines.push(`* **核心能力**：${st.capability}`);
+      lines.push(`* **接口/交接假设**：\`${st.interface_hypothesis}\``);
+      if (st.repo) {
+        lines.push(`* **选定开源仓库**：[${st.repo.full_name}](${st.repo.html_url}) (⭐ ${st.repo.stars.toLocaleString()})`);
       } else {
         lines.push(`* **选定开源仓库**：*(待定/暂无)*`);
       }
       lines.push('');
     });
 
+    lines.push('## 二、统一环境依赖清单 (`requirements.txt`)');
+    lines.push('```text');
+    lines.push(ScaffoldGenerator.generateUnifiedRequirements(currentTemplate.title, slots).trim());
+    lines.push('```');
+    lines.push('');
     lines.push('---');
-    lines.push('*由个人开源项目雷达 (RepoRadar CN) 工作流拼装台生成*');
+    lines.push('*由个人开源项目雷达 (RepoRadar CN V0.3) 工作流拼装台生成*');
 
-    const blob = new Blob([lines.join('\n')], { type: 'text/markdown' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `workflow_${selectedTemplateKey}.md`;
-    a.click();
-    URL.revokeObjectURL(url);
+    triggerDownload(lines.join('\n'), `workflow_${selectedTemplateKey}.md`, 'text/markdown');
   };
+
+  const handleExportRequirements = () => {
+    const slots = buildWorkflowSlots();
+    const txt = ScaffoldGenerator.generateUnifiedRequirements(currentTemplate.title, slots);
+    triggerDownload(txt, `requirements_${selectedTemplateKey}.txt`, 'text/plain');
+    setToast('已生成并下载去重后的统一 requirements.txt！');
+    setTimeout(() => setToast(''), 2500);
+  };
+
+  const handleExportPythonStarter = () => {
+    const slots = buildWorkflowSlots();
+    const py = ScaffoldGenerator.generatePythonStarterScript(
+      currentTemplate.title,
+      currentTemplate.domain,
+      slots
+    );
+    triggerDownload(py, `pipeline_starter_${selectedTemplateKey}.py`, 'text/x-python');
+    setToast('已生成并下载 pipeline_starter.py 脚手架代码！');
+    setTimeout(() => setToast(''), 2500);
+  };
+
+  const handleExportNotebook = () => {
+    const slots = buildWorkflowSlots();
+    const nb = ScaffoldGenerator.generateJupyterNotebook(
+      currentTemplate.title,
+      currentTemplate.domain,
+      slots
+    );
+    triggerDownload(nb, `workflow_${selectedTemplateKey}.ipynb`, 'application/x-ipynb+json');
+    setToast('已生成并下载 Jupyter Notebook (.ipynb) 实验笔记！');
+    setTimeout(() => setToast(''), 2500);
+  };
+
+  const slotsForPreview = buildWorkflowSlots();
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
-      <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+      <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-4xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden">
         {/* Header */}
         <div className="p-5 border-b border-slate-800 flex items-center justify-between">
           <div className="flex items-center space-x-2.5">
@@ -139,8 +220,15 @@ export const WorkflowComposerModal: React.FC<WorkflowComposerModalProps> = ({ on
               <Layers className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-lg font-bold text-white">研究工作流拼装台 (Workflow Composer)</h3>
-              <p className="text-xs text-slate-400">组合垂直库构建端到端方案，明确模块间数据交接假设与接口规范</p>
+              <h3 className="text-lg font-bold text-white flex items-center space-x-2">
+                <span>研究工作流拼装与脚手架生成台</span>
+                <span className="text-[11px] px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                  V0.3 支持导出 .py / .ipynb / requirements.txt
+                </span>
+              </h3>
+              <p className="text-xs text-slate-400">
+                组合垂直库构建端到端方案，自动合成去重依赖清单与带数据流转接口骨架的启动脚本
+              </p>
             </div>
           </div>
           <button onClick={onClose} className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800">
@@ -172,10 +260,10 @@ export const WorkflowComposerModal: React.FC<WorkflowComposerModalProps> = ({ on
           {incomingRepo && (
             <div className="p-2.5 bg-indigo-500/10 border border-indigo-500/30 rounded-xl flex items-center justify-between text-xs text-indigo-300">
               <span>
-                当前待装配项目：<strong className="text-white">{incomingRepo.repo.full_name}</strong> (能力:{' '}
-                {incomingRepo.analysis.chinese_purpose.slice(0, 30)}...)
+                当前待装配项目：<strong className="text-white">{incomingRepo.repo.full_name}</strong> (
+                {incomingRepo.analysis.chinese_purpose.slice(0, 36)}...)
               </span>
-              <span className="text-slate-400 text-[11px]">点击下方对应环节的「装配此仓库」</span>
+              <span className="text-slate-400 text-[11px]">点击下方对应环节的「装配当前仓」或从下拉框选库</span>
             </div>
           )}
 
@@ -188,14 +276,64 @@ export const WorkflowComposerModal: React.FC<WorkflowComposerModalProps> = ({ on
 
         {/* 槽位流水线展示 */}
         <div className="p-6 overflow-y-auto space-y-4 flex-1">
-          <div className="p-4 bg-slate-800/40 border border-slate-800 rounded-xl mb-4">
-            <h4 className="text-sm font-bold text-white mb-1">{currentTemplate.title}</h4>
-            <p className="text-xs text-slate-400">{currentTemplate.description}</p>
+          <div className="p-4 bg-slate-800/40 border border-slate-800 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div>
+              <h4 className="text-sm font-bold text-white mb-0.5">{currentTemplate.title}</h4>
+              <p className="text-xs text-slate-400">{currentTemplate.description}</p>
+            </div>
+            <div className="flex items-center space-x-1.5 shrink-0">
+              <button
+                onClick={() => setPreviewMode(previewMode === 'requirements' ? 'none' : 'requirements')}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-medium border flex items-center space-x-1 transition ${
+                  previewMode === 'requirements'
+                    ? 'bg-sky-500/20 border-sky-500 text-sky-300'
+                    : 'bg-slate-900 border-slate-700 text-slate-300 hover:bg-slate-800'
+                }`}
+              >
+                <Eye className="w-3 h-3" />
+                <span>预览环境清单</span>
+              </button>
+              <button
+                onClick={() => setPreviewMode(previewMode === 'python' ? 'none' : 'python')}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-medium border flex items-center space-x-1 transition ${
+                  previewMode === 'python'
+                    ? 'bg-emerald-500/20 border-emerald-500 text-emerald-300'
+                    : 'bg-slate-900 border-slate-700 text-slate-300 hover:bg-slate-800'
+                }`}
+              >
+                <FileCode className="w-3 h-3" />
+                <span>预览 Python 脚手架</span>
+              </button>
+            </div>
           </div>
+
+          {previewMode !== 'none' && (
+            <div className="p-4 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
+              <div className="flex items-center justify-between text-xs text-slate-400">
+                <span>
+                  {previewMode === 'requirements'
+                    ? '📦 自动合成去重后的 requirements.txt 预览'
+                    : '🐍 自动合成的 pipeline_starter.py 脚手架预览'}
+                </span>
+                <button onClick={() => setPreviewMode('none')} className="text-slate-500 hover:text-slate-300">
+                  收起预览
+                </button>
+              </div>
+              <pre className="text-[11px] font-mono text-emerald-300 overflow-x-auto max-h-48 p-3 bg-slate-900/90 rounded-lg border border-slate-800">
+                {previewMode === 'requirements'
+                  ? ScaffoldGenerator.generateUnifiedRequirements(currentTemplate.title, slotsForPreview)
+                  : ScaffoldGenerator.generatePythonStarterScript(
+                      currentTemplate.title,
+                      currentTemplate.domain,
+                      slotsForPreview
+                    )}
+              </pre>
+            </div>
+          )}
 
           <div className="space-y-3">
             {currentTemplate.steps.map((step, idx) => {
-              const assigned = currentSlots[idx];
+              const assigned = currentSlots[idx]?.repo;
               return (
                 <div
                   key={idx}
@@ -219,18 +357,46 @@ export const WorkflowComposerModal: React.FC<WorkflowComposerModalProps> = ({ on
                     {assigned && (
                       <div className="flex items-center space-x-2 text-xs text-emerald-400 pt-1">
                         <CheckCircle2 className="w-3.5 h-3.5" />
-                        <span>已选定仓库: <a href={assigned.html_url} target="_blank" rel="noreferrer" className="underline font-bold text-white">{assigned.full_name}</a> (⭐ {assigned.stars.toLocaleString()})</span>
+                        <span>
+                          已选定仓库:{' '}
+                          <a
+                            href={assigned.html_url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="underline font-bold text-white"
+                          >
+                            {assigned.full_name}
+                          </a>{' '}
+                          (⭐ {assigned.stars.toLocaleString()})
+                        </span>
                       </div>
                     )}
                   </div>
 
                   <div className="flex items-center space-x-2 shrink-0">
+                    <select
+                      value={assigned?.github_id || ''}
+                      onChange={e => {
+                        const gid = Number(e.target.value);
+                        const found = availablePool.find(p => p.repo.github_id === gid);
+                        if (found) handleAssignRepo(idx, found);
+                      }}
+                      className="bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 max-w-[180px]"
+                    >
+                      <option value="">从候选/收藏库指派...</option>
+                      {availablePool.map(p => (
+                        <option key={p.repo.github_id} value={p.repo.github_id}>
+                          {p.repo.name} (⭐{p.repo.stars})
+                        </option>
+                      ))}
+                    </select>
+
                     {incomingRepo && (
                       <button
                         onClick={() => handleAssignRepo(idx)}
                         className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium transition"
                       >
-                        装配此仓库
+                        装配当前仓
                       </button>
                     )}
                   </div>
@@ -241,26 +407,53 @@ export const WorkflowComposerModal: React.FC<WorkflowComposerModalProps> = ({ on
         </div>
 
         {/* Footer 操作栏 */}
-        <div className="p-4 border-t border-slate-800 bg-slate-950/60 flex items-center justify-between">
+        <div className="p-4 border-t border-slate-800 bg-slate-950/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <p className="text-[11px] text-slate-500">
-            * 组合建议仅提供领域模块切分与接口假设，不假定第三方代码可无缝直接调用。
+            * 生成的脚手架仅包含纯净模板与接口注释，严格遵守只读不自动执行未知第三方代码的安全边界。
           </p>
 
-          <div className="flex items-center space-x-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={handleExportRequirements}
+              className="flex items-center space-x-1 px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-sky-300 text-xs font-medium border border-slate-700 transition"
+              title="汇总并去重所有槽位项目的 Python 依赖"
+            >
+              <PackageCheck className="w-3.5 h-3.5" />
+              <span>requirements.txt</span>
+            </button>
+
+            <button
+              onClick={handleExportPythonStarter}
+              className="flex items-center space-x-1 px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-emerald-300 text-xs font-medium border border-slate-700 transition"
+              title="生成带分步函数与接口文档的 Python 启动脚本"
+            >
+              <FileCode className="w-3.5 h-3.5" />
+              <span>导出 .py 脚手架</span>
+            </button>
+
+            <button
+              onClick={handleExportNotebook}
+              className="flex items-center space-x-1 px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 text-xs font-medium border border-slate-700 transition"
+              title="导出可在 VS Code 或 JupyterLab 打开的 .ipynb 笔记"
+            >
+              <BookOpen className="w-3.5 h-3.5" />
+              <span>导出 .ipynb</span>
+            </button>
+
             <button
               onClick={handleExportMarkdown}
-              className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium border border-slate-700 transition"
+              className="flex items-center space-x-1 px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium border border-slate-700 transition"
             >
               <Download className="w-3.5 h-3.5" />
-              <span>导出方案 Markdown</span>
+              <span>Markdown</span>
             </button>
 
             <button
               onClick={handleSavePipeline}
-              className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium shadow-lg shadow-indigo-500/20 transition"
+              className="flex items-center space-x-1 px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-lg shadow-indigo-500/20 transition"
             >
               <Save className="w-3.5 h-3.5" />
-              <span>保存工作流方案</span>
+              <span>保存工作流</span>
             </button>
           </div>
         </div>
