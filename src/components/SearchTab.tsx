@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Search,
   CheckCircle2,
@@ -93,7 +93,7 @@ export const SearchTab: React.FC<SearchTabProps> = ({ onAddToCompare, compareLis
   const [statusMessage, setStatusMessage] = useState('');
   const [relationDesc, setRelationDesc] = useState('');
 
-  // 触发常规搜索（支持 V0.3 BYOK 大模型查询裂变）
+  // 触发常规搜索（支持 V0.3 BYOK 大模型查询裂变 + 多路并发拉取 30+ 实时 GitHub 仓库）
   const handleSearch = async (queryText: string) => {
     if (!queryText.trim()) return;
     setIsSearching(true);
@@ -108,23 +108,40 @@ export const SearchTab: React.FC<SearchTabProps> = ({ onAddToCompare, compareLis
     let remoteCandidates: { repo: Repository; analysis: EvidenceAnalysis }[] = [];
 
     if (p.generated_github_queries.length > 0) {
-      const q = p.generated_github_queries[0];
-      remoteCandidates = await GitHubService.searchRemote(q, 5);
+      const targetQueries = p.generated_github_queries.slice(0, 2);
+      const batchLists = await Promise.all(
+        targetQueries.map(q => GitHubService.searchRemote(q, 16))
+      );
+      remoteCandidates = batchLists.flat();
     }
 
     const merged = [...localCandidates, ...remoteCandidates];
-    const uniqueMap = new Map<number, { repo: Repository; analysis: EvidenceAnalysis }>();
+    const uniqueMap = new Map<string, { repo: Repository; analysis: EvidenceAnalysis }>();
     for (const c of merged) {
-      if (!uniqueMap.has(c.repo.github_id)) {
-        uniqueMap.set(c.repo.github_id, c);
+      const key = c.repo.full_name.toLowerCase();
+      if (!uniqueMap.has(key)) {
+        uniqueMap.set(key, c);
       }
     }
 
     const uniqueCandidates = Array.from(uniqueMap.values());
+    const triaged = scoreAndTriage(uniqueCandidates, p);
     setCandidatesList(uniqueCandidates);
-    setResults(scoreAndTriage(uniqueCandidates, p));
+    setResults(triaged);
+
+    if (triaged['较完整方案'].length === 0 && triaged['可组合模块'].length > 0) {
+      setActiveResultGroup('可组合模块');
+    } else {
+      setActiveResultGroup('较完整方案');
+    }
+
     setIsSearching(false);
   };
+
+  useEffect(() => {
+    // 首次进入页面时自动向 GitHub 实时拉取候选，结合 33 个本地精选种子展示丰富结果
+    handleSearch(sampleQueries[0]);
+  }, []);
 
   // 以仓找仓 (方向二)
   const handleRelationSearch = async (targetRepo: Repository, mode: 'alternative' | 'lightweight' | 'complementary') => {
@@ -133,15 +150,20 @@ export const SearchTab: React.FC<SearchTabProps> = ({ onAddToCompare, compareLis
     const { queries, filterDesc } = buildRelationQueries(targetRepo, mode);
     setRelationDesc(filterDesc);
 
-    const q = queries[0];
-    const remote = await GitHubService.searchRemote(q, 6);
-    const local = enrichSeedCandidates().filter(s => s.repo.github_id !== targetRepo.github_id);
+    const batchLists = await Promise.all(
+      queries.slice(0, 2).map(q => GitHubService.searchRemote(q, 15))
+    );
+    const remote = batchLists.flat();
+    const local = enrichSeedCandidates().filter(
+      s => s.repo.full_name.toLowerCase() !== targetRepo.full_name.toLowerCase()
+    );
 
     const merged = [...remote, ...local];
-    const uniqueMap = new Map<number, { repo: Repository; analysis: EvidenceAnalysis }>();
+    const uniqueMap = new Map<string, { repo: Repository; analysis: EvidenceAnalysis }>();
     for (const c of merged) {
-      if (c.repo.github_id !== targetRepo.github_id && !uniqueMap.has(c.repo.github_id)) {
-        uniqueMap.set(c.repo.github_id, c);
+      const key = c.repo.full_name.toLowerCase();
+      if (key !== targetRepo.full_name.toLowerCase() && !uniqueMap.has(key)) {
+        uniqueMap.set(key, c);
       }
     }
 
@@ -158,8 +180,9 @@ export const SearchTab: React.FC<SearchTabProps> = ({ onAddToCompare, compareLis
     setParsed(p);
 
     const uniqueCandidates = Array.from(uniqueMap.values());
+    const triaged = scoreAndTriage(uniqueCandidates, p);
     setCandidatesList(uniqueCandidates);
-    setResults(scoreAndTriage(uniqueCandidates, p));
+    setResults(triaged);
     setIsSearching(false);
   };
 

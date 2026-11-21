@@ -18,6 +18,7 @@ export const CatalogTab: React.FC = () => {
   const [showAwesomeImporter, setShowAwesomeImporter] = useState(false);
   const [awesomeInput, setAwesomeInput] = useState('wilsonfreitas/awesome-quant');
   const [isParsingAwesome, setIsParsingAwesome] = useState(false);
+  const [isDiscoveringLive, setIsDiscoveringLive] = useState(false);
   const [parsedCandidates, setParsedCandidates] = useState<AwesomeImportedCandidate[]>([]);
 
   useEffect(() => {
@@ -100,6 +101,66 @@ export const CatalogTab: React.FC = () => {
     setTimeout(() => setToast(''), 4000);
   };
 
+  // 按当前领域与子分类实时向 GitHub 搜索拉取 15 个高星项目扩充目录
+  const handleDiscoverCategoryLive = async () => {
+    setIsDiscoveringLive(true);
+    const subQueryMap: Record<string, string> = {
+      '文献发现': 'academic literature review search rag python',
+      '参考文献管理': 'bibtex citation zotero latex academic',
+      'PDF阅读与解析': 'pdf table formula extraction markdown python',
+      '研究复现': 'reproducible research jupyter quarto latex',
+      'LaTeX工具与模版': 'latex template typesetting academic paper',
+      '学术图表与演示': 'scientific visualization matplotlib plots python',
+      '宏观与金融数据': 'macroeconomic financial market data api python',
+      '因果推断': 'causal inference did econometrics python',
+      '面板计量': 'panel data fixed effects econometrics python',
+      '资产定价': 'asset pricing factor model volatility econometrics python',
+      '公司金融': 'corporate finance sec edgar financial statements python',
+      '财经文本分析': 'financial sentiment analysis nlp finance python',
+      '行情接入': 'market data feed exchange orderbook trading api python',
+      '因子研究': 'alpha factor quantitative investment research python',
+      '策略回测': 'quantitative trading backtesting engine python',
+      '组合优化': 'portfolio optimization mean variance risk parity python',
+      '风险管理': 'quantitative risk management cvar drawdown portfolio python',
+      '模拟交易': 'paper trading algorithmic trading bot python',
+      '图像生成与编辑': 'diffusion image generation editing inpainting python',
+      '视频剪辑': 'video editing compositing ffmpeg python',
+      '代码动画': 'mathematical animation manim visualization python',
+      'AI配音与TTS': 'tts voice synthesis zero-shot speech python',
+      '自动字幕': 'whisper subtitle transcription speech recognition python',
+      '创作工作流编排': 'comfyui node workflow diffusion pipeline',
+    };
+
+    const defaultDomainQuery: Record<string, string> = {
+      '学术研究': 'academic research latex pdf python',
+      '金融与经济研究': 'econometrics panel data finance python',
+      '量化交易': 'quantitative trading backtesting alpha python',
+      '视频与图片创作': 'manim whisper video animation python',
+    };
+
+    const targetSubcat = selectedSubcat === '全部' ? TAXONOMY[selectedDomain][0] : selectedSubcat;
+    const ghQuery =
+      selectedSubcat === '全部'
+        ? defaultDomainQuery[selectedDomain]
+        : subQueryMap[selectedSubcat] || `${selectedSubcat} python`;
+
+    const fetched = await GitHubService.searchRemote(ghQuery, 15);
+    const newEntries: CustomCatalogEntry[] = fetched.map(item => ({
+      domain: selectedDomain,
+      subcategory: targetSubcat,
+      capability: 'GitHub实时发现',
+      modality: '开源仓库',
+      repo: item.repo,
+      analysis: item.analysis,
+    }));
+
+    const added = StorageService.saveCustomCatalogItems(newEntries);
+    setCustomEntries(StorageService.getCustomCatalogItems());
+    setIsDiscoveringLive(false);
+    setToast(`已从 GitHub 实时抓取并为【${selectedDomain} · ${selectedSubcat}】补充了 ${added} 个新开源项目！`);
+    setTimeout(() => setToast(''), 4000);
+  };
+
   return (
     <div className="space-y-6">
       <div className="bg-slate-800/60 border border-slate-700/80 rounded-2xl p-6">
@@ -116,13 +177,24 @@ export const CatalogTab: React.FC = () => {
             </p>
           </div>
 
-          <button
-            onClick={() => setShowAwesomeImporter(!showAwesomeImporter)}
-            className="flex items-center space-x-1.5 px-3.5 py-2 rounded-xl bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 text-xs font-semibold transition shrink-0"
-          >
-            <FolderInput className="w-4 h-4" />
-            <span>{showAwesomeImporter ? '收起 Awesome 导入器' : '🚀 Awesome 清单批量导入'}</span>
-          </button>
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            <button
+              onClick={handleDiscoverCategoryLive}
+              disabled={isDiscoveringLive}
+              className="flex items-center space-x-1.5 px-3.5 py-2 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 text-xs font-semibold transition disabled:opacity-50"
+            >
+              <Sparkles className="w-4 h-4" />
+              <span>{isDiscoveringLive ? '正在实时拉取...' : `🌐 从 GitHub 实时补充「${selectedSubcat === '全部' ? selectedDomain : selectedSubcat}」(+15)`}</span>
+            </button>
+
+            <button
+              onClick={() => setShowAwesomeImporter(!showAwesomeImporter)}
+              className="flex items-center space-x-1.5 px-3.5 py-2 rounded-xl bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 text-xs font-semibold transition"
+            >
+              <FolderInput className="w-4 h-4" />
+              <span>{showAwesomeImporter ? '收起 Awesome 导入器' : '🚀 Awesome 清单批量导入'}</span>
+            </button>
+          </div>
         </div>
 
         {/* V0.3 Awesome 清单批量吞吐面板 */}
